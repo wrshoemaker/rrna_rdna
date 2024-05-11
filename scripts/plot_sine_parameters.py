@@ -1,0 +1,875 @@
+import config
+import sys
+import copy
+import numpy
+import utils
+import matplotlib.pyplot as plt
+from matplotlib import cm, colors
+from scipy import stats
+from scipy.optimize import leastsq, curve_fit, minimize
+from lmfit import Minimizer, create_params, fit_report
+# numdifftools also installed
+import pickle
+
+numpy.random.seed(123456789)
+
+
+param_dict_path = config.data_directory + 'param_%sdict.pickle'
+
+#param_leastsq_all = ['amp_leastsq', 'freq_leastsq', 'phase_leastsq']
+param_no_method_all = ['amp', 'freq', 'phase', 'param_mean']
+
+env_variable_all = ['water_temp', 'specific_conductivity', 'dissolved_oxygen', 'salinity', 'secchi_depth', 'ph', 'air_temperature']
+type_all = ['DNA', 'RNA', 'ratio']
+#type_all = ['DNA']
+
+log10_status_label_dict = {True:'log10_', False:''}
+param_label_dict = {'amp_leastsq': 'Amplitude', 'freq_leastsq': 'Frequency', 'phase_leastsq': 'Phase'}
+
+
+metadata_dict = utils.build_metadata_dict()
+
+minor_days, major_days, major_labels = utils.get_seasonal_tick_labels()
+
+
+s_by_s, otu_labels, samples = utils.load_count_data()
+s_by_s_dna, s_by_s_rna, otu_labels_subset = utils.subset_s_by_s_occupancy(s_by_s, otu_labels, samples, min_occupancy=1)
+
+# returns rescaled relative abundance
+s_by_s_rescaled_dna = utils.rescale_s_by_s(s_by_s_dna)
+s_by_s_rescaled_rna = utils.rescale_s_by_s(s_by_s_rna)
+s_by_s_rescaled_ratio = s_by_s_rescaled_rna/s_by_s_rescaled_dna
+
+
+# get days
+metadata_dict = utils.build_metadata_dict()
+sample_type = numpy.asarray([metadata_dict[s]['sample_type'] for s in samples])
+days = numpy.asarray([metadata_dict[s]['day'] for s in samples[(sample_type=='RNA')]])
+
+
+
+def fcn2min_sine(params, days_afd, afd):
+   
+    """Model sine wave, subtract data."""
+    
+    amp = params['amp']
+    freq = params['freq']
+    phase = params['phase']
+    param_mean = params['param_mean']
+    
+    model = amp*(numpy.cos(phase)*numpy.sin(freq*days_afd) + numpy.sin(phase)*numpy.cos(freq*days_afd)) + param_mean
+    #model = amp*numpy.sin(freq*days_afd - phase) + param_mean
+
+    return model - afd
+
+
+
+def fcn2min_sine_clipped(params, days_afd, afd, upper_bound=1):
+
+    amp = params['amp']
+    freq = params['freq']
+    phase = params['phase']
+    param_mean = params['param_mean']
+
+    model = amp*(numpy.cos(phase)*numpy.sin(freq*days_afd) + numpy.sin(phase)*numpy.cos(freq*days_afd)) + param_mean
+    
+    # reset predictions to upper bound
+    model[model>upper_bound] = upper_bound
+
+    return model - afd
+    
+
+def grid_search_sine_wave(days_afd_, afd_, params_, upper_bound=None):
+
+    # brute force parameter search
+    
+    # default is leastsq
+    # , method='leastsq'
+
+    if upper_bound is not None:
+        fitter = Minimizer(fcn2min_sine_clipped, params_, fcn_args=(days_afd_, afd_, upper_bound))
+
+    else:
+        fitter = Minimizer(fcn2min_sine, params_, fcn_args=(days_afd_, afd_))
+
+    # NS = number of grid points along the axes
+    # keep = number of best candidates from the brute force method that are stored in the candidates attribute
+    
+    # brute force results
+    result_brute = fitter.minimize(method='brute', Ns=30, keep=25)
+
+    return result_brute, fitter
+
+
+
+def fit_sine_wave_leastsq(days_afd, afd):
+
+    guess_mean = numpy.mean(afd)
+    # mean should be 1 because we rescaled
+    #guess_std = 3*numpy.std(afd)#/(2**0.5)/(2**0.5)
+    guess_phase = 30 # a month delay
+    guess_freq = numpy.pi/365
+    guess_amp = 2
+
+    #model_first_guess = guess_std*numpy.sin(days+guess_phase) + guess_mean
+    #model_first_guess = guess_std*numpy.sin(days+guess_phase)
+
+    # Define the function to optimize, in this case, we want to minimize the difference
+    # between the actual data and our "guessed" parameters
+    #optimize_func = lambda x: x[0]*numpy.sin(x[1]*days+x[2]) + x[3] - afd
+
+    # expand sin so that you only have one nonlinear parameter 
+    optimize_func = lambda x: x[0]*(numpy.cos(x[2])*numpy.sin(x[1]*days_afd) + numpy.sin(x[2])*numpy.cos(x[1]*days_afd)) + x[3] - afd
+    
+    #optimize_func = lambda x: x[0]*numpy.sin(x[1]*days+x[2]) + 1 - afd
+    #optimize_func = lambda x: x[0]*numpy.sin(x[1]*days+x[2]) - afd
+
+    #est_amp, est_freq, est_phase = leastsq(optimize_func, [guess_amp, guess_freq, guess_phase])[0]
+    est_amp, est_freq, est_phase, est_mean = leastsq(optimize_func, [guess_amp, guess_freq, guess_phase, guess_mean])[0]
+
+    return est_amp, est_freq, est_phase, est_mean
+
+
+
+def second_rount_optimization(result_brute, fitter):
+
+    # second round of optimization using least-squares with brute force as a starting point
+    best_result_leastsq = copy.deepcopy(result_brute)
+    for candidate in result_brute.candidates:
+        trial = fitter.minimize(method='leastsq', params=candidate.params)
+        if trial.chisqr < best_result_leastsq.chisqr:
+            best_result_leastsq = trial
+
+    return best_result_leastsq
+
+
+
+
+def make_param_dict(log10_status=True):
+
+    param_dict = {}
+    param_dict['otu'] = {}
+    param_dict['env_variables'] = {}
+
+    #param_types = ['amp_brute', 'amp_leastsq', 'freq_brute','freq_leastsq', 'phase_brute', 'phase_leastsq', 'param_mean_brute', 'param_mean_leastsq', 'upper_bound']
+    for p in param_no_method_all:
+        
+        # dictionary for OTUs because each OTU has multiple data types (RNA, DNA, ratio)
+        param_dict['otu']['%s_brute' % p] = {}
+        param_dict['otu']['%s_leastsq' % p] = {}
+
+        # list for environmental variables because they only have one data_type
+        param_dict['env_variables']['%s_brute' % p] = []
+        param_dict['env_variables']['%s_leastsq' % p] = []
+        
+
+    param_dict['otu']['upper_bound'] = {}
+    param_dict['otu']['otu_labels'] = otu_labels_subset.tolist()
+    param_dict['env_variables']['env_variables_labels'] = env_variable_all
+
+    sys.stderr.write("Fitting sine wave to environmental variables...\n")
+    sys.stderr.write(", ".join(["Env. variable", "Amplititude", "Frequency", "Phase", "Mean"]) + "\n")
+
+    # environmental analysis....
+    for env_variable_idx, env_variable in enumerate(env_variable_all):
+        
+        env_variable_array = numpy.asarray([metadata_dict[s][env_variable] for s in samples[(sample_type=='RNA')]])
+        # remove nans
+        env_to_keep_idx = (~numpy.isnan(env_variable_array))
+        env_variable_array_clean = env_variable_array[env_to_keep_idx]
+        days_clean = env_to_keep_idx[env_to_keep_idx]
+        
+        upper_bound = None
+
+        freq_value = 2*numpy.pi/365 # 0.01721420632
+        freq_min = 2*numpy.pi/550 # 0.01142397328 (365+185)
+        freq_max = 2*numpy.pi/180 # 0.034906585 (365-185)
+
+        phase_value = numpy.pi
+        phase_min = 0
+        phase_max = 2*numpy.pi
+
+        param_mean_value = numpy.mean(env_variable_array)
+        param_min_value = min(env_variable_array)
+        param_max_value = max(env_variable_array)
+
+        amp_value = 1
+        amp_min = 0.01
+        amp_max = 10
+
+        params = create_params(amp=dict(value=amp_value, min=amp_min, max=amp_max),
+                                freq=dict(value=freq_value, min=freq_min, max=freq_max),
+                                phase=dict(value=phase_value, min=phase_min, max=phase_max),
+                                param_mean=dict(value=param_mean_value, min=param_min_value, max=param_max_value))
+
+
+        result_brute, fitter = grid_search_sine_wave(days_clean, env_variable_array_clean, params)
+
+        best_params_brute = result_brute.params
+        for p in param_no_method_all:
+            param_dict['env_variables']['%s_brute' % p].append(best_params_brute[p].value)
+
+
+        #amp_brute = best_params_brute['amp'].value
+        #freq_brute = best_params_brute['freq'].value
+        #phase_brute = best_params_brute['phase'].value
+        #param_mean_brute = best_params_brute['param_mean'].value
+        
+        best_result_leastsq = second_rount_optimization(result_brute, fitter)
+        best_params_leastsq = best_result_leastsq.params
+        for p in param_no_method_all:
+            param_dict['env_variables']['%s_leastsq' % p].append(best_params_leastsq[p].value)
+        
+    
+        sys.stderr.write("%s, %.4f, %.4f, %.4f, %.4f\n" % (env_variable, param_dict['env_variables']['amp_leastsq'][env_variable_idx], param_dict['env_variables']['freq_leastsq'][env_variable_idx], param_dict['env_variables']['phase_leastsq'][env_variable_idx], param_dict['env_variables']['param_mean_leastsq'][env_variable_idx]))
+
+        #amp_leastsq = best_params_leastsq['amp'].value
+        #freq_leastsq = best_params_leastsq['freq'].value
+        #phase_leastsq = best_params_leastsq['phase'].value
+        #param_mean_leastsq = best_params_leastsq['param_mean'].value
+
+        #param_dict['env_variables']['amp_brute'].append(amp_brute)
+        #param_dict['env_variables']['amp_leastsq'].append(amp_leastsq)
+
+        #param_dict['env_variables']['freq_brute'].append(freq_brute)
+        #param_dict['env_variables']['freq_leastsq'].append(freq_leastsq)
+
+        #param_dict['env_variables']['phase_brute'].append(phase_brute)
+        #param_dict['env_variables']['phase_leastsq'].append(phase_leastsq)
+
+        #param_dict['env_variables']['param_mean_brute'].append(param_mean_brute)
+        #param_dict['env_variables']['param_mean_leastsq'].append(param_mean_leastsq)
+
+        #param_dict['env_variables']['upper_bound'].append(upper_bound)
+
+
+    
+    sys.stderr.write("Fitting sine wave to OTU timeseries...\n")
+    sys.stderr.write(", ".join(["OTU", 'Sample type', "Amplititude", "Frequency", "Phase", "Mean"]) + "\n")
+    for otu_idx in range(s_by_s_rescaled_ratio.shape[0]):
+
+        #if (otu_labels_subset[otu_idx] != 'Otu000001'):
+        #    continue
+
+        for t_idx, t in enumerate(type_all):
+
+            if t == 'DNA':
+                afd = s_by_s_rescaled_dna[otu_idx,:]
+
+            elif t == 'RNA':
+                afd = s_by_s_rescaled_rna[otu_idx,:]
+
+            else:
+                afd = s_by_s_rescaled_ratio[otu_idx,:]
+
+
+            if log10_status == True:
+                afd = numpy.log10(afd)
+                days_afd = numpy.copy(days)
+
+            else:
+                # remove rare outliers
+                to_keep_idx = (afd<=4)
+                afd = afd[to_keep_idx]
+                days_afd = days[to_keep_idx]
+
+            # if a parameter does not have finite bounds, then it does need a brute_step attribute specified:
+            freq_value = 2*numpy.pi/365 # 0.01721420632
+            freq_min = 2*numpy.pi/550 # 0.01142397328 (365+185)
+            freq_max = 2*numpy.pi/180 # 0.034906585 (365-185)
+
+            phase_value = numpy.pi
+            phase_min = 0
+            phase_max = 2*numpy.pi
+
+            param_mean_value = numpy.mean(afd)
+            
+            if log10_status == True:
+                amp_value = 1
+                # amp_min = 0.1
+                amp_min = 0.1
+                amp_max = 10
+
+                param_mean_min = numpy.log10(0.7) # -0.15490195998
+                param_mean_max = numpy.log10(3) # 0.47712125472
+
+
+            else:
+                amp_value = 1
+                amp_min = 0.5
+                amp_max = 5
+
+                param_mean_min = -1
+                param_mean_max = 0
+                
+
+            params = create_params(amp=dict(value=amp_value, min=amp_min, max=amp_max),
+                                freq=dict(value=freq_value, min=freq_min, max=freq_max),
+                                phase=dict(value=phase_value, min=phase_min, max=phase_max),
+                                param_mean=dict(value=param_mean_value, min=param_mean_min, max=param_mean_max))
+
+
+            upper_bound_dict_otu_1 = {'RNA':0.2, 'DNA':0.8}
+            if (otu_labels_subset[otu_idx] == 'Otu000001') and ((t == 'RNA') or (t == 'DNA')):                
+                #rel_afd_otu = rel_s_by_s_rna[otu_idx,:]
+                #mean_rel_afd_otu = numpy.mean(rel_afd_otu)
+                #log_rescaled_rel_afd = numpy.log10(rel_afd_otu/mean_rel_afd_otu)
+                upper_bound = upper_bound_dict_otu_1[t]
+                result_brute, fitter = grid_search_sine_wave(days_afd, afd, params, upper_bound=upper_bound)
+                
+
+            else:
+                upper_bound = None
+                result_brute, fitter = grid_search_sine_wave(days_afd, afd, params)
+
+
+            if t not in param_dict['otu']['amp_brute']:
+                
+                param_dict['otu']['upper_bound'][t] = []
+                for p in param_no_method_all:
+                    param_dict['otu']['%s_brute'% p][t] = []
+                    param_dict['otu']['%s_leastsq'% p][t] = []
+
+            # best parameters from brute force.
+            best_params_brute = result_brute.params
+            for p in param_no_method_all:
+                param_dict['otu']['%s_brute' % p][t].append(best_params_brute[p].value)
+
+            #amp_brute = best_params_brute['amp'].value
+            #freq_brute = best_params_brute['freq'].value
+            #phase_brute = best_params_brute['phase'].value
+            #param_mean_brute = best_params_brute['param_mean'].value
+            
+            best_result_leastsq = second_rount_optimization(result_brute, fitter)
+            best_params_leastsq = best_result_leastsq.params
+            for p in param_no_method_all:
+                param_dict['otu']['%s_leastsq' % p][t].append(best_params_leastsq[p].value)
+            
+
+            param_dict['otu']['upper_bound'][t].append(upper_bound)
+            # amp_leastsq = best_params_leastsq['amp'].value
+            # freq_leastsq = best_params_leastsq['freq'].value
+            # phase_leastsq = best_params_leastsq['phase'].value
+            # param_mean_leastsq = best_params_leastsq['param_mean'].value
+
+            #print(otu_labels_subset[otu_idx], t, amp_leastsq, freq_leastsq, phase_leastsq, param_mean_leastsq)
+            #amp, freq, phase, param_mean = fit_sine_wave_leastsq(days_afd, afd)
+
+            sys.stderr.write("%s, %s, %.4f, %.4f, %.4f, %.4f\n" % (otu_labels_subset[otu_idx], t, param_dict['otu']['amp_leastsq'][t][otu_idx], param_dict['otu']['freq_leastsq'][t][otu_idx], param_dict['otu']['phase_leastsq'][t][otu_idx], param_dict['otu']['param_mean_leastsq'][t][otu_idx]))
+            
+            
+                
+            #param_dict['otu']['amp_brute'][t].append(amp_brute)
+            #param_dict['otu']['amp_leastsq'][t].append(amp_leastsq)
+
+            #param_dict['otu']['freq_brute'][t].append(freq_brute)
+            #param_dict['otu']['freq_leastsq'][t].append(freq_leastsq)
+
+            #param_dict['otu']['phase_brute'][t].append(phase_brute)
+            #param_dict['otu']['phase_leastsq'][t].append(phase_leastsq)
+
+            #param_dict['otu']['param_mean_brute'][t].append(param_mean_brute)
+            #param_dict['otu']['param_mean_leastsq'][t].append(param_mean_leastsq)
+
+            
+
+
+    param_dict_path_ = param_dict_path % log10_status_label_dict[log10_status]
+
+    sys.stderr.write("Saving parameter dictionary...\n")
+
+    with open(param_dict_path_, 'wb') as outfile:
+        pickle.dump(param_dict, outfile, protocol=pickle.HIGHEST_PROTOCOL)
+
+    sys.stderr.write("Done!\n")
+
+
+
+
+def load_param_dict(log10_status):
+
+    param_dict_path_ = param_dict_path % log10_status_label_dict[log10_status]
+
+    dict_ = pickle.load(open(param_dict_path_, "rb"))
+    return dict_
+
+
+
+
+def plot_otu_1(data_type, log10_status=True, method='leastsq'):
+
+    otu_idx = 0
+    otu_label = 'Otu000001'
+
+    param_dict = load_param_dict(log10_status)
+
+    afd = s_by_s_rescaled_rna[otu_idx,:]
+
+    fig, ax = plt.subplots(figsize=(4,4))
+
+    amp = param_dict['amp_%s' % method][data_type][otu_idx]
+    freq = param_dict['freq_%s' % method][data_type][otu_idx]
+    phase = param_dict['phase_%s' % method][data_type][otu_idx]
+    param_mean = param_dict['param_mean_%s' % method][data_type][otu_idx]
+
+    upper_bound = 0.3
+
+    ax.scatter(days, afd, s=8, alpha=1, c=utils.dna_rna_color_dict[data_type])
+
+    days_range = numpy.linspace(min(days), max(days), 1000)
+    model_prediction = amp*numpy.sin(freq*days_range+phase)+param_mean
+    model_prediction[model_prediction>upper_bound] = upper_bound
+    model_prediction = 10**model_prediction
+
+    ax.plot(days_range, model_prediction, ls='-', lw=1, c=utils.dna_rna_color_dict[data_type])
+    
+    ax.set_xlabel("Time (days)", fontsize=10)
+    ax.set_ylabel(utils.rescaled_label_dict[data_type], fontsize=10)
+    ax.set_title(otu_label, fontsize=11)
+    ax.set_yscale('log', basey=10)
+
+    # tick labels
+
+    #minor_days, major_days, major_labels
+    ax.set_xlim([0, max(days)])
+    ax.set_xticks(minor_days, minor=True)
+    ax.set_xticks(major_days, minor=False)
+    ax.set_xticklabels(major_labels, minor=False, fontsize=7)
+
+    fig.subplots_adjust(hspace=0.35, wspace=0.40)
+    fig_name = "%sotu_1_%s.png" % (config.analysis_directory, data_type)
+    fig.savefig(fig_name, format='png', bbox_inches = "tight", pad_inches = 0.4, dpi = 600)
+    plt.close()
+
+
+
+
+
+def plot_fits(data_type='ratio', log10_status=True, method='leastsq'):
+
+    param_dict = load_param_dict(log10_status)
+
+    fig = plt.figure(figsize = (20, 20))
+    fig.subplots_adjust(bottom= 0.15)
+
+    idx_all = list(range(len(otu_labels_subset)))
+    chunk_all = [idx_all[x:x+5] for x in range(0, len(idx_all), 5)]
+
+    for chunk_idx, chunk in enumerate(chunk_all):
+
+        for c_idx, c in enumerate(chunk):
+
+            ax = plt.subplot2grid((len(chunk_all), len(chunk_all[0])), (chunk_idx, c_idx))
+
+            if data_type == 'DNA':
+                afd = s_by_s_rescaled_dna[c,:]
+
+            elif data_type == 'RNA':
+                afd = s_by_s_rescaled_rna[c,:]
+
+            else:
+                afd = s_by_s_rescaled_ratio[c,:]
+
+            amp = param_dict['amp_%s' % method][data_type][c]
+            freq = param_dict['freq_%s' % method][data_type][c]
+            phase = param_dict['phase_%s' % method][data_type][c]
+            param_mean = param_dict['param_mean_%s' % method][data_type][c]
+            upper_bound = param_dict['upper_bound'][data_type][c]
+
+            ax.scatter(days, afd, s=8, alpha=1, c=utils.dna_rna_color_dict[data_type])
+
+            days_range = numpy.linspace(min(days), max(days), 1000)
+            model_prediction = amp*numpy.sin(freq*days_range+phase)+param_mean
+
+            if upper_bound != None:
+                upper_bound = float(upper_bound)
+                model_prediction[model_prediction>upper_bound] = upper_bound
+
+            if log10_status == True:
+                model_prediction = 10**model_prediction
+
+            ax.plot(days_range, model_prediction, ls='-', lw=1, c=utils.dna_rna_color_dict[data_type])
+            ax.set_xlabel("Time (days)", fontsize=10)
+            ax.set_ylabel(utils.rescaled_label_dict[data_type], fontsize=10)
+            ax.set_title(param_dict['otu_labels'][c], fontsize=11)
+
+            #minor_days, major_days, major_labels
+            ax.set_xlim([0, max(days)])
+            ax.set_xticks(minor_days, minor=True)
+            ax.set_xticks(major_days, minor=False)
+            ax.set_xticklabels(major_labels, minor=False, fontsize=7)
+
+            if log10_status == True:
+                ax.set_yscale('log', basey=10)
+
+ 
+    fig.subplots_adjust(hspace=0.35, wspace=0.40)
+    fig_name = "%ssine_fits_%s.png" % (config.analysis_directory, data_type)
+    fig.savefig(fig_name, format='png', bbox_inches = "tight", pad_inches = 0.4, dpi = 600)
+    plt.close()
+
+
+
+
+def plot_params(log10_status, method='leastsq'):
+
+    param_dict = load_param_dict(log10_status)
+
+    fig = plt.figure(figsize = (12, 8))
+    fig.subplots_adjust(bottom= 0.15)
+
+    for param_idx, param in enumerate(param_no_method_all):
+        
+        # skip parameter mean
+        if param == 'param_mean':
+            continue
+
+        param_label  = '%s_%s' % (param, method)
+        
+        ax_dist = plt.subplot2grid((2, 3), (0, param_idx), colspan=1)
+        ax_compare = plt.subplot2grid((2, 3), (1, param_idx), colspan=1)
+
+        # ratio as reference
+        param_reference_idx = numpy.argsort(param_dict['otu'][param_label]['ratio'])
+
+        if param_label == 'amp_leastsq':
+            ax_dist.axvline(x=0, lw=2, ls=':', c='k', label='No oscillations')
+
+        elif param_label == 'freq_leastsq':
+            ax_dist.axvline(x=0, lw=2, ls=':', c='k', label='Freq. ' + r'$=0$')
+            ax_dist.axvline(x=2*numpy.pi/365, lw=2, ls='--', c='k', label='Freq. ' + r'$= \frac{2\pi}{365}$')
+
+        else:
+            ax_dist.axvline(x=0, lw=2, ls=':', c='k')
+
+
+        for t_idx, t in enumerate(type_all):
+
+            param_t = param_dict['otu'][param_label][t]
+
+            ax_dist.hist(param_t, 8, histtype='step', density=True, stacked=True, fill=False, color=utils.dna_rna_color_dict[t], label=utils.rescaled_label_dict[t])
+            ax_dist.set_xlabel(param_label_dict[param_label], fontsize=11)
+        
+            param_t = numpy.asarray(param_t)
+            ax_compare.scatter(param_t[param_reference_idx], list(range(len(param_t))), s=6, color=utils.dna_rna_color_dict[t], zorder=2)
+            #ax_compare.plot(param_t, list(range(len(param_t))), lw=1, alpha=0.6, color=utils.dna_rna_color_dict[t], zorder=1)
+
+        ax_dist.set_xlabel(param_label_dict[param_label], fontsize=10)
+        ax_dist.set_ylabel("Probability density", fontsize=10)
+
+
+        ax_compare.set_xlabel(param_label_dict[param_label], fontsize=10)
+        ax_compare.set_yticks(list(range(len(param_t))))
+        ax_compare.set_yticklabels(otu_labels_subset[param_reference_idx], fontsize=6)
+
+
+        if param_idx == 0:
+            ax_dist.legend(loc='upper right', fontsize=6)
+
+        if param_idx == 1:
+            ax_dist.legend(loc='upper left', fontsize=6)
+
+        # recreate the fitted curve using the optimized parameters
+        #model_fit = est_amp*numpy.sin(est_freq*days+est_phase) + est_mean
+        #model_fit = est_amp*numpy.sin(est_freq*days+est_phase)
+
+
+    fig.subplots_adjust(hspace=0.35, wspace=0.40)
+    fig_name = "%ssine_parameters.png" % config.analysis_directory
+    fig.savefig(fig_name, format='png', bbox_inches = "tight", pad_inches = 0.4, dpi = 600)
+    plt.close()
+
+
+
+
+def plot_data_collapse_timeseris(log10_status=True, method='leastsq', env_variable='water_temp'):
+
+    data_label = [r'$\tilde{x}_{i}^{(d)}(t)$', r'$\tilde{x}_{i}^{(r)}(t)$', r'$\phi_{i}(t)$']
+    data_collapse_label = [r'$A^{-1}\left (  \tilde{x}_{i}^{(d)}(t) - \left< \tilde{x}_{i}^{(d)} \right> \right )$', r'$A^{-1}\left (  \tilde{x}_{i}^{(r)}(t) - \left<   \tilde{x}_{i}^{(d)} \right> \right )$', r'$A^{-1}\left (  \phi_{i}(t) - \left<   \tilde{x}_{i}^{(d)} \right> \right )$']
+
+    param_dict = load_param_dict(log10_status)
+
+    fig = plt.figure(figsize = (20, 18))
+    fig.subplots_adjust(bottom= 0.15)
+
+    # environmental variable
+    env_variable_array = numpy.asarray([metadata_dict[s][env_variable] for s in samples[(sample_type=='RNA')]])
+    # remove nans
+    env_to_keep_idx = (~numpy.isnan(env_variable_array))
+    env_variable_array = env_variable_array[env_to_keep_idx]
+    days_env = days[env_to_keep_idx]
+
+
+    temp_idx = param_dict['env_variables']['env_variables_labels'].index(env_variable)
+
+    amp_temp = param_dict['env_variables']['amp_%s' % method][temp_idx]
+    freq_temp = param_dict['env_variables']['freq_%s' % method][temp_idx]
+    phase_temp = param_dict['env_variables']['phase_%s' % method][temp_idx]
+    param_mean_temp = param_dict['env_variables']['param_mean_%s' % method][temp_idx]
+    
+    #print(env_variable_array, amp_temp)
+    rescaled_env_variable_array = (env_variable_array - param_mean_temp)/amp_temp
+    rescaled_days_env = freq_temp*days_env + phase_temp
+
+    #print(phase_temp)
+
+    #print(rescaled_env_variable_array)
+
+
+    for data_type_idx, data_type in enumerate(type_all):
+        
+        phase_all = []
+
+        ax_data = plt.subplot2grid((3, 3), (0, data_type_idx), colspan=1)
+        ax_rescaled_data_y = plt.subplot2grid((3, 3), (1, data_type_idx), colspan=1)
+        ax_rescaled_data_xy = plt.subplot2grid((3, 3), (2, data_type_idx), colspan=1)
+
+        for otu_idx in range(s_by_s_rescaled_ratio.shape[0]):
+
+            if data_type == 'DNA':
+                afd = s_by_s_rescaled_dna[otu_idx,:]
+
+            elif data_type == 'RNA':
+                afd = s_by_s_rescaled_rna[otu_idx,:]
+
+            else:
+                afd = s_by_s_rescaled_ratio[otu_idx,:]
+
+
+            if log10_status == True:
+                afd = numpy.log10(afd)
+                days_afd = numpy.copy(days)
+
+            else:
+                # remove rare outliers
+                to_keep_idx = (afd<=4)
+                afd = afd[to_keep_idx]
+                days_afd = days[to_keep_idx]
+            
+
+            amp = param_dict['otu']['amp_%s' % method][data_type][otu_idx]
+            freq = param_dict['otu']['freq_%s' % method][data_type][otu_idx]
+            phase = param_dict['otu']['phase_%s' % method][data_type][otu_idx]
+            param_mean = param_dict['otu']['param_mean_%s' % method][data_type][otu_idx]
+            #upper_bound = param_dict['upper_bound'][data_type][otu_idx]
+
+            phase_all.append(phase)
+
+            ax_data.scatter(days_afd, afd, s=1, alpha=0.7, c=utils.dna_rna_color_dict[data_type], zorder=2)
+            ax_data.plot(days_afd, afd, alpha=0.2, ls='-', lw=0.5, c=utils.dna_rna_color_dict[data_type], zorder=1)
+
+            rescaled_days = freq*days_afd + phase
+            afd_rescaled = (afd - param_mean)/amp
+
+            ax_rescaled_data_y.scatter(days_afd, afd_rescaled, s=1, alpha=0.7, c=utils.dna_rna_color_dict[data_type], zorder=2)
+            ax_rescaled_data_y.plot(days_afd, afd_rescaled, alpha=0.2, ls='-', lw=0.5, c=utils.dna_rna_color_dict[data_type], zorder=1)
+
+
+            ax_rescaled_data_xy.scatter(rescaled_days, afd_rescaled, s=1, alpha=0.7, c=utils.dna_rna_color_dict[data_type], zorder=2)
+            ax_rescaled_data_xy.plot(rescaled_days, afd_rescaled, alpha=0.2, ls='-', lw=0.5, c=utils.dna_rna_color_dict[data_type], zorder=1)
+
+
+            #ax.set_xlabel("Time (days)", fontsize=10)
+        # plot environmental variables
+        ax_rescaled_data_y.plot(days_env, rescaled_env_variable_array, alpha=1, ls='-', lw=3, c='k', zorder=4, label='Param. rescaled water temp.')
+        ax_rescaled_data_xy.plot(rescaled_days_env, rescaled_env_variable_array, alpha=1, ls='-', lw=3, c='k', zorder=4, label='Param. rescaled water temp.')
+
+        
+        phase_all = numpy.asarray(phase_all)
+        print(numpy.mean(numpy.absolute(phase_all - phase_temp))/phase_temp)
+
+
+        #ax.set_xlabel("Time (days), " + r'$t$', fontsize=10)
+        ax_data.set_title(utils.sample_label_dict[data_type], fontsize=12)
+        ax_data.set_xlabel("Time (days), " + r'$t$', fontsize=12)
+        ax_data.set_ylabel("Parameter rescaled relative abundance, " + data_label[data_type_idx], fontsize=12)
+
+        ax_rescaled_data_y.set_xlabel("Time (days), " + r'$t$', fontsize=12)
+        ax_rescaled_data_y.set_ylabel("Parameter rescaled relative\nabundance, " + data_collapse_label[data_type_idx], fontsize=12)
+        
+
+        ax_rescaled_data_xy.set_xlabel("Parameter rescaled time, " + r'$ \frac{t}{\tau_{i, env}} + \psi_{i}$', fontsize=12)
+        ax_rescaled_data_xy.set_ylabel("Parameter rescaled relative\nabundance, " + data_collapse_label[data_type_idx], fontsize=12)
+        
+        if data_type_idx == 0:
+            ax_rescaled_data_y.legend(loc = 'lower right')
+            ax_rescaled_data_xy.legend(loc = 'lower right')
+
+
+        #if data_type_idx == 0:
+        #    ax.legend(loc='lower left')
+
+
+    fig.subplots_adjust(hspace=0.25, wspace=0.30)
+    fig_name = "%sdata_collapse_timeseries.png" % config.analysis_directory
+    fig.savefig(fig_name, format='png', bbox_inches = "tight", pad_inches = 0.4, dpi = 600)
+    plt.close()
+
+
+
+
+def plot_rna_dna_fluctuations():
+
+    metadata_dict = utils.build_metadata_dict()
+
+    s_by_s, otu_labels, samples = utils.load_count_data()
+    s_by_s_dna, s_by_s_rna, otu_labels_subset = utils.subset_s_by_s_occupancy(s_by_s, otu_labels, samples, min_occupancy=1)
+
+    # returns rescaled relative abundance
+    s_by_s_rescaled_dna = utils.rescale_s_by_s(s_by_s_dna)
+    s_by_s_rescaled_rna = utils.rescale_s_by_s(s_by_s_rna)
+    #s_by_s_rescaled_ratio = s_by_s_rescaled_rna/s_by_s_rescaled_dna
+
+    # get days
+    metadata_dict = utils.build_metadata_dict()
+    sample_type = numpy.asarray([metadata_dict[s]['sample_type'] for s in samples])
+    days = numpy.asarray([metadata_dict[s]['day'] for s in samples[(sample_type=='RNA')]])
+
+    param_dict = load_param_dict(log10_status=True)
+
+    fig = plt.figure(figsize = (20, 20))
+    fig.subplots_adjust(bottom= 0.15)
+
+    idx_all = list(range(len(otu_labels_subset)))
+    chunk_all = [idx_all[x:x+5] for x in range(0, len(idx_all), 5)]
+
+    for chunk_idx, chunk in enumerate(chunk_all):
+
+        for c_idx, c in enumerate(chunk):
+
+            ax = plt.subplot2grid((len(chunk_all), len(chunk_all[0])), (chunk_idx, c_idx))
+
+            afd_dna = s_by_s_rescaled_dna[c,:]
+            afd_rna = s_by_s_rescaled_rna[c,:]
+
+            afd_log10_dna = numpy.log10(afd_dna)
+            afd_log10_rna = numpy.log10(afd_rna)
+
+            afd_log10_dna_predicted = param_dict['otu']['amp_leastsq']['DNA'][c]*numpy.sin(param_dict['otu']['freq_leastsq']['DNA'][c]*days+param_dict['otu']['phase_leastsq']['DNA'][c])+param_dict['otu']['param_mean_leastsq']['DNA'][c]
+            afd_log10_rna_predicted = param_dict['otu']['amp_leastsq']['RNA'][c]*numpy.sin(param_dict['otu']['freq_leastsq']['RNA'][c]*days+param_dict['otu']['phase_leastsq']['RNA'][c])+param_dict['otu']['param_mean_leastsq']['RNA'][c]
+
+            resid_afd_log10_dna = afd_log10_dna - afd_log10_dna_predicted
+            resid_afd_log10_rna = afd_log10_rna - afd_log10_rna_predicted
+
+            ax.hist(resid_afd_log10_dna, bins=15, color=utils.dna_rna_color_dict['DNA'], alpha=0.7, density=True, zorder=2, label='DNA')
+            ax.hist(resid_afd_log10_rna, bins=15, color=utils.dna_rna_color_dict['RNA'], alpha=0.7, density=True, zorder=1, label='RNA')
+
+
+            ax.set_xlabel("Residuals of sine model", fontsize=10)
+         
+            ax.set_title(param_dict['otu']['otu_labels'][c], fontsize=11)
+
+            if c == 0:
+                ax.legend(loc = 'lower right')
+
+
+    fig.subplots_adjust(hspace=0.35, wspace=0.40)
+    fig_name = "%srna_dna_fluctuations.png" % config.analysis_directory
+    fig.savefig(fig_name, format='png', bbox_inches = "tight", pad_inches = 0.4, dpi = 600)
+    plt.close()
+
+
+
+
+
+def plot_compare_rna_dna_fluctuations():
+
+    metadata_dict = utils.build_metadata_dict()
+
+    #minor_days, major_days, major_labels = utils.get_seasonal_tick_labels()
+
+    s_by_s, otu_labels, samples = utils.load_count_data()
+    s_by_s_dna, s_by_s_rna, otu_labels_subset = utils.subset_s_by_s_occupancy(s_by_s, otu_labels, samples, min_occupancy=1)
+
+    # returns rescaled relative abundance
+    s_by_s_rescaled_dna = utils.rescale_s_by_s(s_by_s_dna)
+    s_by_s_rescaled_rna = utils.rescale_s_by_s(s_by_s_rna)
+    s_by_s_rescaled_ratio = s_by_s_rescaled_rna/s_by_s_rescaled_dna
+
+    # get days
+    metadata_dict = utils.build_metadata_dict()
+    sample_type = numpy.asarray([metadata_dict[s]['sample_type'] for s in samples])
+    days = numpy.asarray([metadata_dict[s]['day'] for s in samples[(sample_type=='RNA')]])
+
+    param_dict = load_param_dict(log10_status=True)
+
+
+    fig = plt.figure(figsize = (20, 20))
+    fig.subplots_adjust(bottom= 0.15)
+
+    idx_all = list(range(len(otu_labels_subset)))
+    chunk_all = [idx_all[x:x+5] for x in range(0, len(idx_all), 5)]
+
+    for chunk_idx, chunk in enumerate(chunk_all):
+
+        for c_idx, c in enumerate(chunk):
+
+            ax = plt.subplot2grid((len(chunk_all), len(chunk_all[0])), (chunk_idx, c_idx))
+
+            afd_dna = s_by_s_rescaled_dna[c,:]
+            afd_rna = s_by_s_rescaled_rna[c,:]
+
+            afd_log10_dna = numpy.log10(afd_dna)
+            afd_log10_rna = numpy.log10(afd_rna)
+
+            afd_log10_dna_predicted = param_dict['otu']['amp_leastsq']['DNA'][c]*numpy.sin(param_dict['otu']['freq_leastsq']['DNA'][c]*days+param_dict['otu']['phase_leastsq']['DNA'][c])+param_dict['otu']['param_mean_leastsq']['DNA'][c]
+            afd_log10_rna_predicted = param_dict['otu']['amp_leastsq']['RNA'][c]*numpy.sin(param_dict['otu']['freq_leastsq']['RNA'][c]*days+param_dict['otu']['phase_leastsq']['RNA'][c])+param_dict['otu']['param_mean_leastsq']['RNA'][c]
+
+            resid_afd_log10_dna = afd_log10_dna - afd_log10_dna_predicted
+            resid_afd_log10_rna = afd_log10_rna - afd_log10_rna_predicted
+
+            ax.scatter(resid_afd_log10_dna, resid_afd_log10_rna, s=8, alpha=1, c='k', zorder=2)
+            #ax.set_xlim([0, max(days)])
+            #ax.set_xticks(minor_days, minor=True)
+            #ax.set_xticks(major_days, minor=False)
+            #ax.set_xticklabels(major_labels, minor=False, fontsize=7)
+
+            ax.set_xlabel("Residuals of sine model, DNA", fontsize=10)
+            ax.set_ylabel("Residuals of sine model, RNA", fontsize=10)
+
+            merge_resid = numpy.concatenate((resid_afd_log10_dna, resid_afd_log10_rna), axis=None)
+
+            min_resid = min(merge_resid)
+            max_resid = max(merge_resid)
+
+            ax.set_xlim([min_resid, max_resid])
+            ax.set_ylim([min_resid, max_resid])
+
+            ax.plot([min_resid, max_resid], [min_resid, max_resid], ls=':', lw=2, zorder=1, label='1:1')
+            ax.set_title(param_dict['otu']['otu_labels'][c], fontsize=11)
+
+            # correlation
+            rho = numpy.corrcoef(resid_afd_log10_dna, resid_afd_log10_rna)[0,1]
+
+            ax.text(0.24, 0.8, r'$\rho^{2} = $' + str(round(rho**2, 3)), fontsize=15, ha='center', va='center', transform=ax.transAxes)
+            
+            slope, intercept, r_value, p_value, std_err = stats.linregress(resid_afd_log10_dna, resid_afd_log10_rna)
+            x_range_ =  numpy.linspace(min_resid*1.2, max_resid*0.8, 10000)
+            y_fit_range = slope*x_range_ + intercept
+            ax.plot(x_range_, y_fit_range, lw=2.5, ls='--', c='k', label='OLS regression', zorder=3)
+
+            if c == 0:
+                ax.legend(loc = 'lower right')
+
+
+    fig.subplots_adjust(hspace=0.35, wspace=0.40)
+    fig_name = "%scompare_rna_dna_fluctuations.png" % config.analysis_directory
+    fig.savefig(fig_name, format='png', bbox_inches = "tight", pad_inches = 0.4, dpi = 600)
+    plt.close()
+
+
+if __name__ == "__main__":
+
+    #make_param_dict(log10_status=True)
+
+    plot_rna_dna_fluctuations()
+    #plot_otu_1('DNA')
+
+    #plot_fits(data_type='RNA', log10_status=True)
+    #plot_fits(data_type='DNA', log10_status=True)
+    #plot_fits(data_type='ratio', log10_status=True)
+
+    #plot_params(log10_status=True)
+
+
+    #plot_data_collapse_timeseris()
