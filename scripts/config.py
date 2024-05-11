@@ -8,6 +8,6 @@ import os
 from math import log10
 
 
-data_directory = os.path.expanduser("~/GitHub/misc_analyses/rrna_rdna/data/")
-analysis_directory = os.path.expanduser("~/GitHub/misc_analyses/rrna_rdna/analysis/")
-scripts_directory = os.path.expanduser("~/GitHub/misc_analyses/rrna_rdna/scripts/")
+data_directory = os.path.expanduser("~/GitHub/rrna_rdna/data/")
+analysis_directory = os.path.expanduser("~/GitHub/rrna_rdna/analysis/")
+scripts_directory = os.path.expanduser("~/GitHub/rrna_rdna/scripts/")

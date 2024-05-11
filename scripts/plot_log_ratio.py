@@ -41,7 +41,12 @@ for log_ratio_i_idx, log_ratio_i in enumerate([log_ratio_dna, log_ratio_rna]):
 
     for afd in log_ratio_dna:
 
-        ax_dist.hist(afd, bins=12, density=True, histtype='step', alpha=0.5, color=utils.dna_rna_color_dict[data_type_i], zorder=1)
+        hist_afd, bins_afd = utils.get_hist_and_bins(afd, bins=12)
+        ax_dist.scatter(bins_afd, hist_afd, s=7, color=utils.dna_rna_color_dict[data_type_i], alpha=0.7, lw=1)
+        #ax_dist.plot(bins_afd, hist_afd, lw=1, color=utils.dna_rna_color_dict[data_type_i], alpha=0.7)
+
+        
+        #ax_dist.hist(afd, bins=12, density=True, histtype='step', alpha=0.5, color=utils.dna_rna_color_dict[data_type_i], zorder=1)
         
         ax_time.plot(days[:-1], afd, ls='-', lw=0.5, alpha=0.3, c=utils.dna_rna_color_dict[data_type_i], zorder=1)
         ax_time.scatter(days[:-1], afd, s=0.8 , c=utils.dna_rna_color_dict[data_type_i], alpha=0.7, zorder=2)
@@ -59,8 +64,8 @@ for log_ratio_i_idx, log_ratio_i in enumerate([log_ratio_dna, log_ratio_rna]):
     ax_time.set_ylabel("Log ratio of abundances between\nconsecutive timepoints at time " + r'$t$' + ', ' + ratio_time_label[log_ratio_i_idx], fontsize=10)
     
     if log_ratio_i_idx == 0:
-        ax_dist.legend(loc='upper left')
-        ax_time.legend(loc='upper left')
+        ax_dist.legend(loc='upper left', fontsize=8)
+        ax_time.legend(loc='upper left', fontsize=8)
 
 
 fig.subplots_adjust(hspace=0.35,wspace=0.3)

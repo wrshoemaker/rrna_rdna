@@ -14,13 +14,15 @@ from collections import Counter
 
 dna_rna_color_dict = {'RNA': '#FF6347', 'DNA': '#87CEEB', 'ratio':'k'}
 
-
 color_radius = 2
 
 rescaled_label_dict = {'RNA':'Rescaled RNA, ' + r'$r_{i}(t)$', 'DNA': 'Rescaled DNA, ' + r'$d_{i}(i)$', 'ratio': 'Rescaled RNA:DNA, ' + r'$\phi_{i}(t)$'}
 #rescaled_label_dict = {'RNA':'Rescaled RNA, ' + r'$r_{i}(t)$', 'DNA': 'Rescaled DNA, ' + r'$d_{i}(i)$', 'ratio': 'Rescaled RNA:DNA, ' + r'$\phi_{i}(t)$'}
 
 sample_label_dict = {'RNA': 'RNA', 'DNA':'DNA', 'ratio': 'RNA-DNA ratio'}
+
+data_type_all = ['DNA', 'RNA', 'ratio']
+env_variables_all = ['water_temp', 'specific_conductivity', 'dissolved_oxygen', 'salinity', 'secchi_depth', 'ph']
 
 
 taxonomic_ranks = ['domain', 'phylum', 'class', 'order', 'family', 'genus', 'species']
@@ -767,7 +769,7 @@ def get_seasonal_tick_labels():
     return minor_days, major_days, major_labels
 
 
-get_seasonal_tick_labels()
+#get_seasonal_tick_labels()
 
 
 

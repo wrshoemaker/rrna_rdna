@@ -708,7 +708,7 @@ def plot_data_collapse_timeseris(log10_status=True, method='leastsq', env_variab
 
 
 
-def plot_rna_dna_fluctuations():
+def plot_rna_dna_residuals():
 
     metadata_dict = utils.build_metadata_dict()
 
@@ -764,7 +764,7 @@ def plot_rna_dna_fluctuations():
 
 
     fig.subplots_adjust(hspace=0.35, wspace=0.40)
-    fig_name = "%srna_dna_fluctuations.png" % config.analysis_directory
+    fig_name = "%srna_dna_residuals.png" % config.analysis_directory
     fig.savefig(fig_name, format='png', bbox_inches = "tight", pad_inches = 0.4, dpi = 600)
     plt.close()
 
@@ -772,7 +772,7 @@ def plot_rna_dna_fluctuations():
 
 
 
-def plot_compare_rna_dna_fluctuations():
+def plot_compare_rna_dna_residuals():
 
     metadata_dict = utils.build_metadata_dict()
 
@@ -853,16 +853,96 @@ def plot_compare_rna_dna_fluctuations():
 
 
     fig.subplots_adjust(hspace=0.35, wspace=0.40)
-    fig_name = "%scompare_rna_dna_fluctuations.png" % config.analysis_directory
+    fig_name = "%scompare_rna_dna_residuals.png" % config.analysis_directory
     fig.savefig(fig_name, format='png', bbox_inches = "tight", pad_inches = 0.4, dpi = 600)
     plt.close()
+
+
+
+
+def plot_sine_residuals_all():
+
+    fig = plt.figure(figsize = (12, 4))
+    fig.subplots_adjust(bottom= 0.15)
+
+    metadata_dict = utils.build_metadata_dict()
+    param_dict = load_param_dict(log10_status=True)
+
+    s_by_s, otu_labels, samples = utils.load_count_data()
+    s_by_s_dna, s_by_s_rna, otu_labels_subset = utils.subset_s_by_s_occupancy(s_by_s, otu_labels, samples, min_occupancy=1)
+
+    # returns rescaled relative abundance
+    s_by_s_rescaled_dna = utils.rescale_s_by_s(s_by_s_dna)
+    s_by_s_rescaled_rna = utils.rescale_s_by_s(s_by_s_rna)
+    s_by_s_rescaled_ratio = s_by_s_rescaled_rna/s_by_s_rescaled_dna
+
+    s_by_s_rescaled_dna_log = numpy.log10(s_by_s_rescaled_dna)
+    s_by_s_rescaled_rna_log = numpy.log10(s_by_s_rescaled_rna)
+    s_by_s_rescaled_ratio_log = numpy.log10(s_by_s_rescaled_ratio)
+
+    s_by_s_rescaled_log_dict = {'DNA':s_by_s_rescaled_dna_log, 'RNA':s_by_s_rescaled_rna_log, 'ratio':s_by_s_rescaled_ratio_log}
+
+    for d_idx, d in enumerate(utils.data_type_all):
+
+        ax = plt.subplot2grid((1, 3), (0, d_idx))
+
+        s_by_s_rescaled = s_by_s_rescaled_log_dict[d]
+
+        resid_all = []
+        hist_resid_all = []
+        for otu_i_idx in range(len(otu_labels_subset)):
+            
+            resid_i = s_by_s_rescaled[otu_i_idx,:] - (param_dict['otu']['amp_leastsq'][d][otu_i_idx]*numpy.sin(param_dict['otu']['freq_leastsq'][d][otu_i_idx]*days+param_dict['otu']['phase_leastsq'][d][otu_i_idx])+param_dict['otu']['param_mean_leastsq'][d][otu_i_idx])
+            
+            #rescaled_resid_i = (resid_i - numpy.mean(resid_i))/numpy.std(resid_i)
+            hist_resid_i, bins_resid_i = utils.get_hist_and_bins(resid_i, bins=10)
+            ax.scatter(bins_resid_i, hist_resid_i, s=7, color=utils.dna_rna_color_dict[d], alpha=0.7, lw=1)
+
+            hist_resid_all.append(hist_resid_i)
+
+            resid_all.append(resid_i)
+
+
+        resid_all = numpy.concatenate(resid_all).ravel()
+        hist_resid_all = numpy.concatenate(hist_resid_all).ravel()
+
+        # fit loggamma
+        shape_gamma, loc_gamma, scale_gamma = stats.loggamma.fit(resid_all)
+        x = numpy.linspace(stats.loggamma.ppf(0.001, shape_gamma, loc=loc_gamma, scale=scale_gamma), stats.loggamma.ppf(0.999, shape_gamma, loc=loc_gamma, scale=scale_gamma), 100)
+        pdf_loggamma_to_plot = stats.loggamma.pdf(x, shape_gamma, loc=loc_gamma, scale=scale_gamma)
+        ax.plot(x, pdf_loggamma_to_plot, 'k', ls='--', lw=3, label='Gamma')
+
+        ax.set_ylim([min(hist_resid_all), max(hist_resid_all)])
+
+        print(shape_gamma * scale_gamma, shape_gamma)
+
+
+        ax.set_yscale('log', basey=10)
+        ax.set_title(utils.sample_label_dict[d], fontsize=12)
+        ax.set_xlabel("Residuals of sine fit", fontsize = 10)
+        ax.set_ylabel("Probability density", fontsize = 10)
+
+        if d_idx == 0:
+            ax.legend(loc='upper left', fontsize=10)
+        
+        #afd_log10_dna_predicted = 
+
+
+    fig.subplots_adjust(hspace=0.35,wspace=0.25)
+    fig_name = "%ssine_residuals.png" % config.analysis_directory
+    fig.savefig(fig_name, format='png', bbox_inches = "tight", pad_inches = 0.4, dpi = 600)
+    plt.close()
+
+
+
 
 
 if __name__ == "__main__":
 
     #make_param_dict(log10_status=True)
 
-    plot_rna_dna_fluctuations()
+    #plot_rna_dna_residuals()
+    plot_sine_residuals_all()
     #plot_otu_1('DNA')
 
     #plot_fits(data_type='RNA', log10_status=True)
