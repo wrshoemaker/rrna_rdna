@@ -35,6 +35,10 @@ def plot_autocorrelation_otu(data_type):
     rel_s_by_s_rescaled_rna = utils.rescale_s_by_s(s_by_s_rna)
     rel_s_by_s_rescaled_ratio = rel_s_by_s_rescaled_rna/rel_s_by_s_rescaled_dna
 
+    rel_s_by_s_rescaled_dna_log = numpy.log10(rel_s_by_s_rescaled_dna)
+    rel_s_by_s_rescaled_rna_log = numpy.log10(rel_s_by_s_rescaled_rna)
+    rel_s_by_s_rescaled_ratio_log = numpy.log10(rel_s_by_s_rescaled_ratio)
+
     # get days
     metadata_dict = utils.build_metadata_dict()
     sample_type = numpy.asarray([metadata_dict[s]['sample_type'] for s in samples])
@@ -60,20 +64,23 @@ def plot_autocorrelation_otu(data_type):
             ax = plt.subplot2grid((len(chunk_all), len(chunk_all[0])), (chunk_idx, c_idx))
 
             if data_type == 'DNA':
-                afd_c = rel_s_by_s_rescaled_dna[c,:]
+                afd_c = rel_s_by_s_rescaled_dna_log[c,:]
 
             elif data_type == 'RNA':
-                afd_c = rel_s_by_s_rescaled_rna[c,:]
+                afd_c = rel_s_by_s_rescaled_rna_log[c,:]
 
             elif data_type == 'ratio':
-                afd_c = rel_s_by_s_rescaled_ratio[c,:]
+                afd_c = rel_s_by_s_rescaled_ratio_log[c,:]
 
             else:
                 sys.stderr.write("Argument not recognized!\n")
                 sys.exit()
 
-            
-            autocorr_obs_c = [numpy.corrcoef(afd_c[i:], afd_c[:-i])[0,1] for i in time_increments]
+
+            # rescale using sine fits
+            afd_c_rescaled = (afd_c - param_dict['otu']['param_mean_leastsq'][data_type][c])/param_dict['otu']['amp_leastsq'][data_type][c]
+                        
+            autocorr_obs_c = [numpy.corrcoef(afd_c_rescaled[i:], afd_c_rescaled[:-i])[0,1] for i in time_increments]
             #autocorr_pred_c = 0.5*numpy.cos((2*numpy.pi*delta_t)/freq_leastsq_all[c])
             autocorr_pred_c = 0.5*numpy.cos(freq_leastsq_all[c]*delta_t)
 
