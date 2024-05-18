@@ -33,6 +33,8 @@ rel_s_by_s_dna = rel_s_by_s[:,sample_type_dna_idx]
 
 days = numpy.asarray([metadata_dict[s]['day'] for s in sample_type_rna])
 
+print(days)
+
 occupancy_rna = numpy.sum((rel_s_by_s_rna>0), axis=1)/sum(sample_type_rna_idx)
 occupancy_dna = numpy.sum((rel_s_by_s_dna>0), axis=1)/sum(sample_type_dna_idx)
 

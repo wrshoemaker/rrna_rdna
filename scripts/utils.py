@@ -4,7 +4,7 @@ from datetime import datetime
 import numpy
 import pandas
 import math
-
+import sympy
 from matplotlib import cm
 
 from collections import Counter
@@ -767,6 +767,22 @@ def get_seasonal_tick_labels():
 
 
     return minor_days, major_days, major_labels
+
+
+
+
+def Klogn(cumK, c, mu0=-19, s0=5):
+    # This function estimates the parameters (mu, s) of the lognormal distribution of K
+    m1 = numpy.mean(numpy.log(cumK[cumK>c]))
+    m2 = numpy.mean(numpy.log(cumK[cumK>c])**2)
+    xmu = sympy.symbols('xmu')
+    xs = sympy.symbols('xs')
+    eq1 = -m1+xmu + sympy.sqrt(2/sympy.pi)*xs*sympy.exp(-((sympy.log(c)-xmu)**2)/2/(xs**2))/(sympy.erfc((sympy.log(c)-xmu)/sympy.sqrt(2)/xs))
+    eq2 = -m2+xs**2+m1*xmu+sympy.log(c)*m1-xmu*sympy.log(c)
+
+    sol = sympy.nsolve([eq1,eq2],[xmu,xs],[mu0,s0])
+
+    return float(sol[0]), float(sol[1])
 
 
 #get_seasonal_tick_labels()
