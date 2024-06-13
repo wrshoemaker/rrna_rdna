@@ -10,6 +10,11 @@ from scipy import stats, signal
 
 
 s_by_s, otu_labels, samples = utils.load_count_data()
+to_keep_idx = otu_labels != 'Otu000001'
+s_by_s = s_by_s[to_keep_idx,:]
+otu_labels = otu_labels[to_keep_idx]
+#print(s_by_s.shape)
+
 rel_s_by_s = s_by_s/numpy.sum(s_by_s, axis=0)
 # s_by_s.shape = (246, 134265)
 
@@ -94,7 +99,7 @@ ax.set_ylabel('DNA at t+1', fontsize=10)
 
 
 fig.subplots_adjust(hspace=0.35,wspace=0.3)
-fig_name = "%sautocorrelation.png" % config.analysis_directory
+fig_name = "%sautocorrelation_no_otu1.png" % config.analysis_directory
 fig.savefig(fig_name, format='png', bbox_inches = "tight", pad_inches = 0.4, dpi = 600)
 plt.close()
 

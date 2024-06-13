@@ -15,11 +15,23 @@ numpy.random.seed(123456789)
 
 
 
-null_predict_change_dict_path = config.data_directory + 'null_predict_change_dict.pickle'
+null_predict_change_dict_path = config.data_directory + 'null_predict_change_%sdict.pickle'
+
+
+def get_null_predict_change_dict_path(otu_to_remove=None):
+
+    if otu_to_remove == None:
+        otu_to_remove_label = ''
+    else:
+        otu_to_remove_label = 'no_%s_' % otu_to_remove 
+
+    null_predict_change_dict_path_ = null_predict_change_dict_path % (otu_to_remove_label)
+
+    return null_predict_change_dict_path_
 
 
 
-def make_null_predict_change_dict(n_perm = 10000):
+def make_null_predict_change_dict(n_perm = 10000, otu_to_remove=None):
 
 
     sys.stderr.write("Calculating observed correlations...\n")
@@ -29,19 +41,23 @@ def make_null_predict_change_dict(n_perm = 10000):
     # then we should be able to predict the change in DNA (proxy of biomass)....
 
     metadata_dict = utils.build_metadata_dict()
-
-    minor_days, major_days, major_labels = utils.get_seasonal_tick_labels()
-
     s_by_s, otu_labels, samples = utils.load_count_data()
-    s_by_s_dna, s_by_s_rna, otu_labels_subset = utils.subset_s_by_s_occupancy(s_by_s, otu_labels, samples, min_occupancy=1)
+    rel_s_by_s_dna, rel_s_by_s_rna, otu_labels_subset = utils.subset_s_by_s_occupancy(s_by_s, otu_labels, samples, min_occupancy=1)
+
+    if otu_to_remove != None:
+        otu_to_keep_idx = (otu_labels_subset != otu_to_remove)
+        rel_s_by_s_dna = rel_s_by_s_dna[otu_to_keep_idx,:]
+        rel_s_by_s_rna = rel_s_by_s_rna[otu_to_keep_idx,:]
+        otu_labels_subset = otu_labels_subset[otu_to_keep_idx]
+
 
     metadata_dict = utils.build_metadata_dict()
     sample_type = numpy.asarray([metadata_dict[s]['sample_type'] for s in samples])
     days = numpy.asarray([metadata_dict[s]['day'] for s in samples[(sample_type=='RNA')]])
 
     # returns rescaled relative abundance
-    s_by_s_rescaled_dna = utils.rescale_s_by_s(s_by_s_dna)
-    s_by_s_rescaled_rna = utils.rescale_s_by_s(s_by_s_rna)
+    s_by_s_rescaled_dna = utils.rescale_s_by_s(rel_s_by_s_dna)
+    s_by_s_rescaled_rna = utils.rescale_s_by_s(rel_s_by_s_rna)
     s_by_s_rescaled_ratio = s_by_s_rescaled_rna/s_by_s_rescaled_dna
 
     # average the ratio obser species
@@ -58,6 +74,8 @@ def make_null_predict_change_dict(n_perm = 10000):
     null_predict_change_dict = {}
     for otu_i_idx, otu_i in enumerate(otu_labels_subset):
         null_predict_change_dict[otu_i] = {}
+        null_predict_change_dict[otu_i]['slope_null_list'] = []  
+        null_predict_change_dict[otu_i]['intercept_null_list'] = []  
         null_predict_change_dict[otu_i]['rho_null_list'] = []  
 
         s_by_s_rescaled_ratio_rescaled_by_otus_log10_i = s_by_s_rescaled_ratio_rescaled_by_otus_log10[otu_i_idx,:-1]
@@ -65,7 +83,13 @@ def make_null_predict_change_dict(n_perm = 10000):
 
         null_predict_change_dict[otu_i]['rescaled_rna_dna_ratio_log10'] = s_by_s_rescaled_ratio_rescaled_by_otus_log10_i.tolist()
         null_predict_change_dict[otu_i]['ratio_rescaked_dna_log10'] = ratio_s_by_s_rescaled_dna_log10_i.tolist()
-        null_predict_change_dict[otu_i]['rho_obs'] = numpy.corrcoef(s_by_s_rescaled_ratio_rescaled_by_otus_log10_i,ratio_s_by_s_rescaled_dna_log10_i )[0,1]
+
+        # slope and intercept
+        slope, intercept, r_value, p_value, std_err = stats.linregress(s_by_s_rescaled_ratio_rescaled_by_otus_log10_i, ratio_s_by_s_rescaled_dna_log10_i)
+        #null_predict_change_dict[otu_i]['rho_obs'] = numpy.corrcoef(s_by_s_rescaled_ratio_rescaled_by_otus_log10_i,ratio_s_by_s_rescaled_dna_log10_i )[0,1]
+        null_predict_change_dict[otu_i]['slope_obs'] = slope
+        null_predict_change_dict[otu_i]['intercept_obs'] = intercept
+        null_predict_change_dict[otu_i]['rho_obs'] = r_value
 
 
     sys.stderr.write("Generating distribution of null correlations via permuting time labels...\n")
@@ -91,12 +115,19 @@ def make_null_predict_change_dict(n_perm = 10000):
             mean_rescaled_ratio_over_otus_i_null = s_by_s_rescaled_ratio_rescaled_by_otus_log10_null[otu_i_idx,:-1]
             ratio_s_by_s_rescaled_dna_log10_null_i = ratio_s_by_s_rescaled_dna_log10_null[otu_i_idx,:]
 
-            rho_null = numpy.corrcoef(mean_rescaled_ratio_over_otus_i_null, ratio_s_by_s_rescaled_dna_log10_null_i)[0,1]
-            null_predict_change_dict[otu_i]['rho_null_list'].append(rho_null)
+            #rho_null = numpy.corrcoef(mean_rescaled_ratio_over_otus_i_null, ratio_s_by_s_rescaled_dna_log10_null_i)[0,1]
+            slope_null, intercept_null, r_value_null, p_value_null, std_err_null = stats.linregress(mean_rescaled_ratio_over_otus_i_null, ratio_s_by_s_rescaled_dna_log10_null_i)
+            
+            #null_predict_change_dict[otu_i]['rho_null_list'].append(rho_null)
+            null_predict_change_dict[otu_i]['slope_null_list'].append(slope_null)
+            null_predict_change_dict[otu_i]['intercept_null_list'].append(intercept_null)
+            null_predict_change_dict[otu_i]['rho_null_list'].append(r_value_null)
 
 
     #sys.stderr.write("%d permutations done...\n" % n)
     sys.stderr.write("Saving correlation dictionary...\n")
+
+    null_predict_change_dict_path = get_null_predict_change_dict_path(otu_to_remove)    
 
     with open(null_predict_change_dict_path, 'wb') as outfile:
         pickle.dump(null_predict_change_dict, outfile, protocol=pickle.HIGHEST_PROTOCOL)
@@ -112,13 +143,20 @@ def load_null_predict_change_dict_path():
     return dict_
 
 
+def load_null_predict_change_dict_path(otu_to_remove=None):
+
+    dict_path = get_null_predict_change_dict_path(otu_to_remove)
+
+    dict_ = pickle.load(open(dict_path, "rb"))
+    return dict_
 
 
 
 
-def plot_predict_change_scatter():
 
-    null_predict_change_dict = load_null_predict_change_dict_path()
+def plot_predict_change_scatter(otu_to_remove=None):
+
+    null_predict_change_dict = load_null_predict_change_dict_path(otu_to_remove)
 
     fig = plt.figure(figsize = (20, 20))
     fig.subplots_adjust(bottom= 0.15)
@@ -137,9 +175,7 @@ def plot_predict_change_scatter():
             rescaled_rna_dna_ratio_log10 = numpy.asarray(null_predict_change_dict[c]['rescaled_rna_dna_ratio_log10'])
             ratio_rescaked_dna_log10 = numpy.asarray(null_predict_change_dict[c]['ratio_rescaked_dna_log10'])
 
-
             ax.scatter(10**rescaled_rna_dna_ratio_log10, 10**ratio_rescaked_dna_log10, s=8, alpha=1, c='k', zorder=2)
-            
             ax.set_title(c, fontsize=11)
             ax.set_xlabel("Rescaled RNA:DNA ratio, " + r'$ \frac{\phi_{i}(t)}{\left< \phi(t) \right>_{S}}$', fontsize=10)
             ax.set_ylabel("Ratio of DNA relative\nabundances b/w timepoints, " + r'$ \frac{\tilde{x}_{i}^{d}(t + \delta t)}{\tilde{x}_{i}^{d}(t )}$', fontsize=10)
@@ -161,9 +197,13 @@ def plot_predict_change_scatter():
 
             #print(slope, r_value**2)
 
+    if otu_to_remove == None:
+        otu_to_remove_label = ''
+    else:
+        otu_to_remove_label = '_no_%s' % otu_to_remove 
 
     fig.subplots_adjust(hspace=0.35, wspace=0.45)
-    fig_name = "%spredict_change_dna.png" % config.analysis_directory
+    fig_name = "%spredict_change_dna%s.png" % (config.analysis_directory, otu_to_remove_label)
     fig.savefig(fig_name, format='png', bbox_inches = "tight", pad_inches = 0.4, dpi = 600)
     plt.close()
 
@@ -208,7 +248,6 @@ def plot_predict_change_null_hist():
 
             #ax.text(0.24, 0.8, r'$\rho^{2} = $' + str(round(rho**2, 3)), fontsize=15, ha='center', va='center', transform=ax.transAxes)
 
-
             if (c_idx==0) and (chunk_idx==0):
                 ax.legend(loc='upper left')
 
@@ -219,12 +258,60 @@ def plot_predict_change_null_hist():
 
 
 
+def plot_slope_comparison_no_otu1():
+
+    predict_dict = load_null_predict_change_dict_path()
+    predict_no_otu1_dict = load_null_predict_change_dict_path(otu_to_remove='Otu000001')
+
+    otus_all = numpy.asarray(list(predict_dict.keys()))
+    otus_no_otu1_all = numpy.asarray(list(predict_no_otu1_dict.keys()))
+    otus_intersect = numpy.intersect1d(otus_all, otus_no_otu1_all)
+
+    fig = plt.figure(figsize = (8, 4))
+    fig.subplots_adjust(bottom= 0.15)
+
+    label_list = ['slope', 'correlaton']
+
+    for obs_idx, obs in enumerate(['slope_obs', 'rho_obs']):
+
+        ax = plt.subplot2grid((1, 2), (0, obs_idx))
+
+        obs_all = [predict_dict[i][obs] for i in otus_intersect]
+        obs_no_otu1_all = [predict_no_otu1_dict[i][obs] for i in otus_intersect]
+
+        merged_all = obs_all+obs_no_otu1_all
+        min_ = min(merged_all)
+        max_ = max(merged_all)
+
+        ax.scatter(obs_all, obs_no_otu1_all, alpha=0.7, zorder=2)
+        ax.plot([min_, max_], [min_, max_], ls=':', lw=2, c='k', zorder=1)
+        ax.set_xlim([min_, max_])
+        ax.set_ylim([min_, max_])
+
+        ax.set_xlabel('RNA/DNA at t vs. DNA at t+delta t %s' % label_list[obs_idx], fontsize=10)
+        ax.set_ylabel('RNA/DNA at t vs. DNA at t+delta t %s, no OTU1' % label_list[obs_idx], fontsize=10)
+
+    fig.subplots_adjust(hspace=0.35, wspace=0.40)
+    fig_name = "%sstat_comparison_no_otu1.png" % (config.analysis_directory)
+    fig.savefig(fig_name, format='png', bbox_inches = "tight", pad_inches = 0.4, dpi = 600)
+    plt.close()
 
 
 
-plot_predict_change_null_hist()
 
 
+
+
+#plot_predict_change_scatter()
+
+#plot_predict_change_null_hist()
 #make_null_predict_change_dict()
+#make_null_predict_change_dict(otu_to_remove='Otu000001')
 #make_plot()
 
+#plot_predict_change_scatter()
+#plot_predict_change_scatter(otu_to_remove='Otu000001')
+
+
+
+plot_slope_comparison_no_otu1()

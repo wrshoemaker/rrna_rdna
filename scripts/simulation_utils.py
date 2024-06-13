@@ -191,10 +191,14 @@ def test_amp_effect_fix_mean_var(mu, s, S, N, dist, gm, n_sites, rhogamma=0):
 
     focal_sine_dict = {}
     #s_by_s_sampled_all = []
-    fig = plt.figure(figsize = (12, 4))
-    ax_focal = plt.subplot2grid((1, 3), (0, 0))
-    ax_rank_2 = plt.subplot2grid((1, 3), (0, 1))
-    ax_rank_2_no_focal = plt.subplot2grid((1, 3), (0, 2))
+    fig = plt.figure(figsize = (12, 8))
+    ax_focal = plt.subplot2grid((2, 3), (0, 0))
+    ax_rank_2 = plt.subplot2grid((2, 3), (0, 1))
+    ax_rank_2_no_focal = plt.subplot2grid((2, 3), (0, 2))
+
+    ax_focal_reads = plt.subplot2grid((2, 3), (1, 0))
+    ax_rank_2_reads = plt.subplot2grid((2, 3), (1, 1))
+    ax_rank_2_no_focal_reads = plt.subplot2grid((2, 3), (1, 2))
 
     for amp_focal_idx, amp_focal in enumerate(amp_focal_range):
 
@@ -227,6 +231,13 @@ def test_amp_effect_fix_mean_var(mu, s, S, N, dist, gm, n_sites, rhogamma=0):
         focal_days_to_plot = days[to_plot_focal_idx]
         ax_focal.plot(focal_days_to_plot, focal_afd_to_plot, c=amp_colormap[amp_focal_idx], lw=2, alpha=0.8, label='Amp = %0.2f' % amp_focal)
 
+        # reads
+        focal_afd_reads = read_counts_multinomial_all[-1,:]
+        to_plot_focal_reads_idx = focal_afd_reads>0
+        focal_afd_reads_to_plot = focal_afd_reads[to_plot_focal_reads_idx]
+        focal_reads_days_to_plot = days[to_plot_focal_reads_idx]
+        ax_focal_reads.plot(focal_reads_days_to_plot, focal_afd_reads_to_plot, c=amp_colormap[amp_focal_idx], lw=2, alpha=0.8, label='Amp = %0.2f' % amp_focal)
+
 
         rank_2_afd = rel_read_counts_multinomial_all[-2,:]
         rank_2_afd = rank_2_afd/numpy.mean(rank_2_afd)
@@ -235,15 +246,31 @@ def test_amp_effect_fix_mean_var(mu, s, S, N, dist, gm, n_sites, rhogamma=0):
         rank_2_days_to_plot = days[to_plot_rank_2_idx]
         ax_rank_2.plot(rank_2_days_to_plot, rank_2_afd_to_plot, c=amp_colormap[amp_focal_idx], lw=2, alpha=0.8, label='Amp = %0.2f' % amp_focal)
 
+        # reads
+        rank_2_afd_reads = read_counts_multinomial_all[-2,:]
+        to_plot_rank_2_reads_idx = rank_2_afd_reads>0
+        rank_2_afd_reads_to_plot = rank_2_afd_reads[to_plot_rank_2_reads_idx]
+        rank_2_days_reads_to_plot = days[to_plot_rank_2_reads_idx]
+        ax_rank_2_reads.plot(rank_2_days_reads_to_plot, rank_2_afd_reads_to_plot, c=amp_colormap[amp_focal_idx], lw=2, alpha=0.8, label='Amp = %0.2f' % amp_focal)
+
+
         # plot without focal
         read_counts_multinomial_all_no_focal = read_counts_multinomial_all[:-1,:]
+        # remove zeros
+        n_reads = numpy.sum(read_counts_multinomial_all_no_focal, axis=0)
+        samples_to_keep_idx = n_reads > 0 
+        days_to_keep = days[samples_to_keep_idx]
+        read_counts_multinomial_all_no_focal = read_counts_multinomial_all_no_focal[:,samples_to_keep_idx]
         rel_read_counts_multinomial_all_no_focal = read_counts_multinomial_all_no_focal/numpy.sum(read_counts_multinomial_all_no_focal, axis=0)
         rank_2_afd_no_focal = rel_read_counts_multinomial_all_no_focal[-1,:]
         rank_2_afd_no_focal = rank_2_afd_no_focal/numpy.mean(rank_2_afd_no_focal)
         to_plot_rank_2_no_focal_idx = rank_2_afd_no_focal>0
         rank_2_afd_no_focal_to_plot = rank_2_afd_no_focal[to_plot_rank_2_no_focal_idx]
-        rank_2_days_no_focal_to_plot = days[to_plot_rank_2_no_focal_idx]
+        rank_2_days_no_focal_to_plot = days_to_keep[to_plot_rank_2_no_focal_idx]
         ax_rank_2_no_focal.plot(rank_2_days_no_focal_to_plot, rank_2_afd_no_focal_to_plot, c=amp_colormap[amp_focal_idx], lw=2, alpha=0.8, label='Amp = %0.2f' % amp_focal)
+
+
+        ax_rank_2_no_focal_reads.plot(days[samples_to_keep_idx], n_reads[samples_to_keep_idx], c=amp_colormap[amp_focal_idx], lw=2, alpha=0.8, label='Amp = %0.2f' % amp_focal)
 
 
 
@@ -253,17 +280,32 @@ def test_amp_effect_fix_mean_var(mu, s, S, N, dist, gm, n_sites, rhogamma=0):
     ax_focal.legend(loc='lower right', fontsize=8)
     ax_focal.set_title('Oscillating OTU', fontsize=12)
 
+    ax_focal_reads.set_yscale('log', basey=10)
+    ax_focal_reads.set_xlabel("Days", fontsize=10)
+    ax_focal_reads.set_ylabel("Number of reads", fontsize=10)
+    ax_focal_reads.set_title('Oscillating OTU', fontsize=12)
+
     ax_rank_2.set_yscale('log', basey=10)
     ax_rank_2.set_xlabel("Days", fontsize=10)
     ax_rank_2.set_ylabel("Rescaled relative abundance", fontsize=10)
     ax_rank_2.set_title('Non-oscillating OTU, rank 2 abundance', fontsize=12)
 
+    ax_rank_2_reads.set_yscale('log', basey=10)
+    ax_rank_2_reads.set_xlabel("Days", fontsize=10)
+    ax_rank_2_reads.set_ylabel("Number of reads", fontsize=10)
+    ax_rank_2_reads.set_title('Non-oscillating OTU, rank 2 abundance', fontsize=12)
 
+    #ax_rank_2_no_focal.set_ylim([0.5e-4, 7])
     ax_rank_2_no_focal.set_yscale('log', basey=10)
     ax_rank_2_no_focal.set_xlabel("Days", fontsize=10)
     ax_rank_2_no_focal.set_ylabel("Rescaled relative abundance", fontsize=10)
-    ax_rank_2_no_focal.set_title('Non-oscillating OTU, rank 2 abundance\nFocal OTU removed from reads', fontsize=12)
+    ax_rank_2_no_focal.set_title('Non-oscillating OTU, rank 2 abundance\nOscillating OTU removed from reads', fontsize=12)
 
+    # total number reads
+    ax_rank_2_no_focal_reads.set_yscale('log', basey=10)
+    ax_rank_2_no_focal_reads.set_xlabel("Days", fontsize=10)
+    ax_rank_2_no_focal_reads.set_ylabel("Total number of reads", fontsize=10)
+    ax_rank_2_no_focal_reads.set_title('Oscillating OTU removed from reads', fontsize=12)
 
     fig.subplots_adjust(hspace=0.35,wspace=0.4)
     fig_name = "%stest_amp_effect_fix_mean_var.png" % config.analysis_directory

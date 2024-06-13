@@ -179,17 +179,18 @@ def make_param_dict(log10_status=True, otu_to_remove=None, min_occupancy=1):
     s_by_s, otu_labels, samples = utils.load_count_data()
 
     # filter out otu
-    if otu_to_remove != None:
-        otu_to_keep_idx = (otu_labels != otu_to_remove)
-        s_by_s = s_by_s[otu_to_keep_idx,:]
-        otu_labels = otu_labels[otu_to_keep_idx]
-
-    s_by_s_dna, s_by_s_rna, otu_labels_subset = utils.subset_s_by_s_occupancy(s_by_s, otu_labels, samples, min_occupancy=min_occupancy)
+    rel_s_by_s_dna, rel_s_by_s_rna, otu_labels_subset = utils.subset_s_by_s_occupancy(s_by_s, otu_labels, samples, min_occupancy=min_occupancy)
     
+    if otu_to_remove != None:
+        otu_to_keep_idx = (otu_labels_subset != otu_to_remove)
+        rel_s_by_s_dna = rel_s_by_s_dna[otu_to_keep_idx,:]
+        rel_s_by_s_rna = rel_s_by_s_rna[otu_to_keep_idx,:]
+        otu_labels_subset = otu_labels_subset[otu_to_keep_idx]
+
     # returns rescaled relative abundance
-    s_by_s_rescaled_dna = utils.rescale_s_by_s(s_by_s_dna)
-    s_by_s_rescaled_rna = utils.rescale_s_by_s(s_by_s_rna)
-    s_by_s_rescaled_ratio = s_by_s_rescaled_rna/s_by_s_rescaled_dna
+    rel_s_by_s_rescaled_dna = utils.rescale_s_by_s(rel_s_by_s_dna)
+    rel_s_by_s_rescaled_rna = utils.rescale_s_by_s(rel_s_by_s_rna)
+    rel_s_by_s_rescaled_ratio = rel_s_by_s_rescaled_rna/rel_s_by_s_rescaled_dna
 
     param_dict = {}
     param_dict['otu'] = {}
@@ -273,21 +274,18 @@ def make_param_dict(log10_status=True, otu_to_remove=None, min_occupancy=1):
     
     sys.stderr.write("Fitting sine wave to OTU timeseries...\n")
     sys.stderr.write(", ".join(["OTU", 'Sample type', "Amplititude", "Frequency", "Phase", "Mean"]) + "\n")
-    for otu_idx in range(s_by_s_rescaled_ratio.shape[0]):
-
-        #if (otu_labels_subset[otu_idx] != 'Otu000001'):
-        #    continue
+    for otu_idx in range(rel_s_by_s_rescaled_ratio.shape[0]):
 
         for data_type_idx, data_type in enumerate(type_all):
 
             if data_type == 'DNA':
-                afd = s_by_s_rescaled_dna[otu_idx,:]
+                afd = rel_s_by_s_rescaled_dna[otu_idx,:]
 
             elif data_type == 'RNA':
-                afd = s_by_s_rescaled_rna[otu_idx,:]
+                afd = rel_s_by_s_rescaled_rna[otu_idx,:]
 
             else:
-                afd = s_by_s_rescaled_ratio[otu_idx,:]
+                afd = rel_s_by_s_rescaled_ratio[otu_idx,:]
 
 
             if log10_status == True:
@@ -300,7 +298,6 @@ def make_param_dict(log10_status=True, otu_to_remove=None, min_occupancy=1):
                 afd = afd[to_keep_idx]
                 days_afd = days[to_keep_idx]
 
-            print(afd)
 
             # if a parameter does not have finite bounds, then it does need a brute_step attribute specified:
             freq_value = 2*numpy.pi/365 # 0.01721420632
@@ -383,7 +380,7 @@ def make_param_dict(log10_status=True, otu_to_remove=None, min_occupancy=1):
             param_dict['otu']['data']['days'][data_type].append(days_afd.tolist())
             param_dict['otu']['data']['afd'][data_type].append(afd.tolist())
 
-            print(len(param_dict['otu']['data']['afd'][data_type]))
+            #print(len(param_dict['otu']['data']['afd'][data_type]))
 
             # amp_leastsq = best_params_leastsq['amp'].value
             # freq_leastsq = best_params_leastsq['freq'].value
@@ -409,7 +406,7 @@ def make_param_dict(log10_status=True, otu_to_remove=None, min_occupancy=1):
 
 
 
-def load_param_dict(log10_status, otu_to_remove=False):
+def load_param_dict(log10_status, otu_to_remove=None):
 
     param_dict_path_ = get_param_dict_path(log10_status, otu_to_remove)
 
@@ -969,15 +966,15 @@ if __name__ == "__main__":
     #rel_s_by_s_rna = s_by_s_rna/numpy.sum(s_by_s_rna, axis=0)
 
 
-    #make_param_dict(log10_status=True, otu_to_remove='Otu000001')
-    make_param_dict(log10_status=True, otu_to_remove=None)
+    make_param_dict(log10_status=True, otu_to_remove='Otu000001')
+    #make_param_dict(log10_status=True, otu_to_remove=None)
 
     #plot_rna_dna_residuals()
     #plot_sine_residuals_all()
     #plot_otu_1('DNA')
 
     #plot_fits(data_type='DNA', log10_status=True, otu_to_remove='Otu000001')
-    #plot_fits(data_type='DNA', log10_status=True)
+    #plot_fits(data_type='RNA', log10_status=True, otu_to_remove='Otu000001')
     #plot_fits(data_type='ratio', log10_status=True)
 
     #plot_params(log10_status=True)

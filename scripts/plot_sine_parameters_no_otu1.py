@@ -25,13 +25,14 @@ otu_labels_no_otu1 = numpy.asarray(param_no_otu1_dict['otu']['otu_labels'])
 otu_labels_intersect = numpy.intersect1d(otu_labels, otu_labels_no_otu1)
 
 to_plot_all_idx = numpy.asarray([numpy.where(otu_labels==i)[0][0] for i in otu_labels_intersect])
-to_plot_no_otu1_idx = numpy.asarray([numpy.where(otu_labels_intersect==i)[0][0] for i in otu_labels_intersect])
+to_plot_no_otu1_idx = numpy.asarray([numpy.where(otu_labels_no_otu1==i)[0][0] for i in otu_labels_intersect])
 
 
-fig = plt.figure(figsize = (8, 16))
+fig = plt.figure(figsize = (12, 16))
 fig.subplots_adjust(bottom= 0.15)
 
-for data_type_idx, data_type in enumerate(['DNA', 'RNA']):
+
+for data_type_idx, data_type in enumerate(['DNA', 'RNA', 'ratio']):
 
     amp_all = numpy.asarray(param_dict['otu']['amp_leastsq'][data_type])[to_plot_all_idx]
     amp_no_otu1 = numpy.asarray(param_no_otu1_dict['otu']['amp_leastsq'][data_type])[to_plot_no_otu1_idx]
@@ -53,10 +54,10 @@ for data_type_idx, data_type in enumerate(['DNA', 'RNA']):
     scaled_time_min_max = [min(scaled_time_merged), max(scaled_time_merged)]
     
 
-    ax_amp = plt.subplot2grid((4, 2), (0, data_type_idx))
-    ax_freq = plt.subplot2grid((4, 2), (1, data_type_idx))
-    ax_phase = plt.subplot2grid((4, 2), (2, data_type_idx))
-    ax_scaled_time = plt.subplot2grid((4, 2), (3, data_type_idx))
+    ax_amp = plt.subplot2grid((4, 3), (0, data_type_idx))
+    ax_freq = plt.subplot2grid((4,3), (1, data_type_idx))
+    ax_phase = plt.subplot2grid((4, 3), (2, data_type_idx))
+    ax_scaled_time = plt.subplot2grid((4, 3), (3, data_type_idx))
 
     ax_amp.set_title(data_type, fontsize=14)
 

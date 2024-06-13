@@ -649,6 +649,7 @@ def subset_s_by_s_occupancy(s_by_s, otu_labels, samples, min_occupancy=1):
     # takes s_by_s, splits by RNA and DNA
     # then selects samples with same occupancy in each dataset
     # returns (DNA, RNA)
+    # returns RELATIVE abundance
 
     metadata_dict = build_metadata_dict()
 
@@ -657,10 +658,16 @@ def subset_s_by_s_occupancy(s_by_s, otu_labels, samples, min_occupancy=1):
     sample_type_rna_idx = (sample_type=='RNA')
     sample_type_dna_idx = (sample_type=='DNA')
 
-    sample_type_rna = samples[sample_type_rna_idx]
+    #sample_type_rna = samples[sample_type_rna_idx]
 
     s_by_s_rna = s_by_s[:,sample_type_rna_idx]
     s_by_s_dna = s_by_s[:,sample_type_dna_idx]
+
+    n_reads_rna = numpy.sum(s_by_s_rna, axis=0)
+    n_reads_dna = numpy.sum(s_by_s_dna, axis=0)
+
+    rel_s_by_s_rna = s_by_s_rna/n_reads_rna
+    rel_s_by_s_dna = s_by_s_dna/n_reads_dna
 
     occupancy_rna = numpy.sum((s_by_s_rna>0), axis=1)/sum(sample_type_rna_idx)
     occupancy_dna = numpy.sum((s_by_s_dna>0), axis=1)/sum(sample_type_dna_idx)
@@ -669,10 +676,10 @@ def subset_s_by_s_occupancy(s_by_s, otu_labels, samples, min_occupancy=1):
 
     otu_labels_occupancy = otu_labels[occupancy_idx]
     
-    s_by_s_rna_occupancy = s_by_s_rna[occupancy_idx,:]
-    s_by_s_dna_occupancy = s_by_s_dna[occupancy_idx,:]
+    rel_s_by_s_rna_occupancy = rel_s_by_s_rna[occupancy_idx,:]
+    rel_s_by_s_dna_occupancy = rel_s_by_s_dna[occupancy_idx,:]
 
-    return s_by_s_dna_occupancy, s_by_s_rna_occupancy, otu_labels_occupancy
+    return rel_s_by_s_dna_occupancy, rel_s_by_s_rna_occupancy, otu_labels_occupancy
 
 
 
