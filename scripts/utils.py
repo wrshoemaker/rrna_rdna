@@ -2,12 +2,16 @@
 import config 
 from datetime import datetime
 import numpy
-import pandas
+#import pandas
 import math
 import sympy
+from scipy.stats import gmean
+
 from matplotlib import cm
 
+
 from collections import Counter
+
 
 
 # colors_dict = {'0':'#87CEEB', '1': '#FFA500', '2':'#FF6347'}
@@ -647,9 +651,9 @@ def calculate_mean_copy_number(dna_or_rna='DNA', taxonomic_level='Genus'):
 def subset_s_by_s_occupancy(s_by_s, otu_labels, samples, min_occupancy=1):
 
     # takes s_by_s, splits by RNA and DNA
+    # calculates relative abundance
     # then selects samples with same occupancy in each dataset
-    # returns (DNA, RNA)
-    # returns RELATIVE abundance
+    # returns (DNA, RNA) as relative abundance
 
     metadata_dict = build_metadata_dict()
 
@@ -693,6 +697,70 @@ def rescale_s_by_s(s_by_s):
     rescaled_rel_s_by_s = (rel_s_by_s.T/mad).T
 
     return rescaled_rel_s_by_s
+
+
+
+def clr_transform(s_by_s, otu_labels, samples, min_occupancy=1):
+
+    # subset_n_reads=False
+
+    # requires rel_s_by_s ASVs to all have occupancy = 1
+    metadata_dict = build_metadata_dict()
+
+    sample_type = numpy.asarray([metadata_dict[s]['sample_type'] for s in samples])
+
+    sample_type_rna_idx = (sample_type=='RNA')
+    sample_type_dna_idx = (sample_type=='DNA')
+
+    s_by_s_rna = s_by_s[:,sample_type_rna_idx]
+    s_by_s_dna = s_by_s[:,sample_type_dna_idx]
+
+    occupancy_rna = numpy.sum((s_by_s_rna>0), axis=1)/sum(sample_type_rna_idx)
+    occupancy_dna = numpy.sum((s_by_s_dna>0), axis=1)/sum(sample_type_dna_idx)
+
+    occupancy_idx = (occupancy_rna>=min_occupancy) & (occupancy_dna>=min_occupancy)
+
+    otu_labels_occupancy = otu_labels[occupancy_idx]
+    
+    s_by_s_rna_occupancy = s_by_s_rna[occupancy_idx,:]
+    s_by_s_dna_occupancy = s_by_s_dna[occupancy_idx,:]
+
+    #n_reads_rna = numpy.sum(s_by_s_rna, axis=0)
+    #n_reads_dna = numpy.sum(s_by_s_dna, axis=0)
+
+    n_reads_rna_gmean = gmean(s_by_s_rna_occupancy, axis=0)
+    n_reads_dna_gmean = gmean(s_by_s_dna_occupancy, axis=0)
+
+    clr_s_by_s_rna = numpy.log(s_by_s_rna_occupancy/n_reads_rna_gmean)
+    clr_s_by_s_dna = numpy.log(s_by_s_dna_occupancy/n_reads_dna_gmean)
+
+    return clr_s_by_s_dna, clr_s_by_s_rna, otu_labels_occupancy
+
+
+
+
+def clr_transform_sim(s_by_s, min_occupancy=1):
+
+    # requires rel_s_by_s ASVs to all have occupancy = 1
+    occupancy = numpy.sum((s_by_s>0), axis=1)/s_by_s.shape[1]
+
+    occupancy_idx = (occupancy>=min_occupancy) #& (occupancy>=min_occupancy)
+    
+    s_by_s_occupancy = s_by_s[occupancy_idx,:]
+
+    #n_reads_rna = numpy.sum(s_by_s_rna, axis=0)
+    #n_reads_dna = numpy.sum(s_by_s_dna, axis=0)
+
+    # geometric mean *across* species calculated for each sample
+    # len(n_reads_gmean) = # samples
+    n_reads_gmean = gmean(s_by_s_occupancy, axis=0)
+
+    clr_s_by_s = numpy.log(s_by_s_occupancy/n_reads_gmean)
+
+    return clr_s_by_s, occupancy_idx
+
+
+
 
 
 
@@ -792,10 +860,27 @@ def Klogn(cumK, c, mu0=-19, s0=5):
     return float(sol[0]), float(sol[1])
 
 
-#get_seasonal_tick_labels()
+
+def estimate_k_and_sigma(s_by_s, min_occupancy=0.2):
+
+    n_reads = s_by_s.sum(axis=0)
+
+    rel_s_by_s = s_by_s/n_reads
+
+    occupancy = numpy.sum(rel_s_by_s>0, axis=1)/len(n_reads)
+
+    mediasq = numpy.mean(numpy.divide(s_by_s.T*(s_by_s.T - numpy.ones(numpy.shape(s_by_s.T))), (n_reads*(n_reads-1))[:,None]), axis=0 )  
+    meanrelabd = numpy.mean(rel_s_by_s, axis=1) 
 
 
-
+    temp = 1 + meanrelabd**2/(mediasq-meanrelabd**2)  
+    sigma = numpy.where((temp!=0) & (~numpy.isnan(temp)), 2/temp, numpy.nan) 
+    k = 2*meanrelabd/(2-sigma) 
+    ids = numpy.nonzero((sigma>0) & (occupancy>min_occupancy)) 
+    ids2 = numpy.nonzero(sigma>0)
+    
+    return k, sigma, ids, ids2, meanrelabd
+   
 
 
 
