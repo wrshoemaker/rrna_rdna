@@ -8,6 +8,9 @@ numpy.seterr(divide='ignore', invalid='ignore')
 min_n_obs = 10
 
 
+#def plot_autocorrelation():
+
+
 
 s_by_s, otu_labels, samples = utils.load_count_data()
 rel_s_by_s = s_by_s/numpy.sum(s_by_s, axis=0)

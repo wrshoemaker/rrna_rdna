@@ -26,7 +26,7 @@ for data_type_i in ['RNA', 'DNA']:
     sigma = sigma[ids]
     k = k[ids]
 
-    print(len(sigma))
+    print(numpy.var(sigma**2))
     # distribution of sigma squared
     sigma_hist_to_plot, sigma_bins_mean_to_plot = utils.get_hist_and_bins(sigma**2, bins=n_bins)
 

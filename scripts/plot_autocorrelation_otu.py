@@ -10,7 +10,11 @@ from scipy import stats
 # numdifftools also installed
 import pickle
 
-import plot_sine_parameters
+import sine_parameter_utils
+
+
+
+autocorrelation_dict_path = config.data_directory + 'autocorrelation_dict.pickle'
 
 
 numpy.seterr(divide='ignore', invalid='ignore')
@@ -21,41 +25,104 @@ min_n_obs = 10
 
 #label_dict = {'DNA':  r'$R_{\tilde{X}_{i}}(\Delta t)$'}
 
-# 
 
-def plot_autocorrelation_otu(data_type):
+def make_autocorrelation_dict(clr_status=True):
 
     metadata_dict = utils.build_metadata_dict()
 
     s_by_s, otu_labels, samples = utils.load_count_data()
-    s_by_s_dna, s_by_s_rna, otu_labels_subset = utils.subset_s_by_s_occupancy(s_by_s, otu_labels, samples, min_occupancy=1)
+    #s_by_s_dna, s_by_s_rna, otu_labels_subset = utils.subset_s_by_s_occupancy(s_by_s, otu_labels, samples, min_occupancy=1)
 
-    # returns rescaled relative abundance
-    rel_s_by_s_rescaled_dna = utils.rescale_s_by_s(s_by_s_dna)
-    rel_s_by_s_rescaled_rna = utils.rescale_s_by_s(s_by_s_rna)
-    rel_s_by_s_rescaled_ratio = rel_s_by_s_rescaled_rna/rel_s_by_s_rescaled_dna
+    if clr_status == True:
+        param_dict = sine_parameter_utils.load_param_otu_dict(log10_status=False, clr_status=True, otu_to_remove=None)
 
-    rel_s_by_s_rescaled_dna_log = numpy.log10(rel_s_by_s_rescaled_dna)
-    rel_s_by_s_rescaled_rna_log = numpy.log10(rel_s_by_s_rescaled_rna)
-    rel_s_by_s_rescaled_ratio_log = numpy.log10(rel_s_by_s_rescaled_ratio)
+    else:
+        param_dict = sine_parameter_utils.load_param_otu_dict(log10_status=True, clr_status=False, otu_to_remove=None)
 
+
+    param_env_dict = sine_parameter_utils.load_param_env_dict()
     # get days
     metadata_dict = utils.build_metadata_dict()
     sample_type = numpy.asarray([metadata_dict[s]['sample_type'] for s in samples])
-    days = numpy.asarray([metadata_dict[s]['day'] for s in samples[(sample_type=='RNA')]])
+    env_variable_array = numpy.asarray([metadata_dict[s]['water_temp'] for s in samples[(sample_type=='RNA')]])
+    days_env = numpy.asarray([metadata_dict[s]['day'] for s in samples[(sample_type=='RNA')]])
 
-    param_dict = plot_sine_parameters.load_param_dict(log10_status=True)
-    freq_leastsq_all = param_dict['otu']['freq_leastsq'][data_type]
+    to_keep_idx = ~numpy.isnan(env_variable_array)
+    env_variable_array = env_variable_array[to_keep_idx]
+    days_env = days_env[to_keep_idx]
+
+    env_variable_array_rescaled = (env_variable_array - param_env_dict['param_mean_leastsq'][0])/param_env_dict['amp_leastsq'][0]
+    autocorr_obs_env, delta_t_env = utils.calculate_autocorrelation(env_variable_array_rescaled, days_env)
+
+    
+    autocorr_dict = {}
+    autocorr_dict['env'] = {}
+    autocorr_dict['env']['water_temp'] = {}
+    autocorr_dict['env']['water_temp']['delta_t_env'] = delta_t_env.tolist()
+    autocorr_dict['env']['water_temp']['autocorr_obs_env'] = autocorr_obs_env.tolist()
+
+    autocorr_dict['otu'] = {}
+
+    idx_all = list(range(len(param_dict['otu_labels'])))
+
+    for otu_i_idx in idx_all:
+
+        otu_i = param_dict['otu_labels'][otu_i_idx]
+
+        autocorr_dict['otu'][otu_i] = {}
+
+        for data_type in ['RNA', 'DNA']:
+
+            freq_leastsq_i = param_dict['freq_leastsq'][data_type][otu_i_idx]
+            param_mean_leastsq_i = param_dict['param_mean_leastsq'][data_type][otu_i_idx]
+            amp_leastsq_i = param_dict['amp_leastsq'][data_type][otu_i_idx]
+            afd_i = param_dict['data']['afd'][data_type][otu_i_idx]
+            days_i = param_dict['data']['days'][data_type][otu_i_idx]
+
+            afd_i = numpy.asarray(afd_i)
+            days_i = numpy.asarray(days_i)
+            
+            afd_i_rescaled = (afd_i - param_mean_leastsq_i)/amp_leastsq_i
+            autocorr_obs_i, delta_t_i = utils.calculate_autocorrelation(afd_i_rescaled, days_i)
+
+            delta_t_inter = numpy.intersect1d(delta_t_i, delta_t_env)
+
+            delta_t_i_to_keep_idx = [numpy.where(delta_t_i==t)[0][0] for t in delta_t_inter]
+            delta_t_env_to_keep_idx = [numpy.where(delta_t_env==t)[0][0] for t in delta_t_inter]
+
+            rho_autocorr_clr_vs_temp = numpy.corrcoef(autocorr_obs_i[delta_t_i_to_keep_idx], autocorr_obs_env[delta_t_env_to_keep_idx])[0,1]
+
+
+            autocorr_dict['otu'][otu_i][data_type] = {}
+            autocorr_dict['otu'][otu_i][data_type]['delta_t'] = delta_t_i.tolist()
+            autocorr_dict['otu'][otu_i][data_type]['autocorr_obs'] = autocorr_obs_i.tolist()
+            autocorr_dict['otu'][otu_i][data_type]['rho_autocorr_clr_vs_temp'] = rho_autocorr_clr_vs_temp
+
+
+
+    sys.stderr.write("Saving correlation dictionary...\n")
+    with open(autocorrelation_dict_path, 'wb') as outfile:
+        pickle.dump(autocorr_dict, outfile, protocol=pickle.HIGHEST_PROTOCOL)
+    sys.stderr.write("Done!\n")
+
+
+
+def plot_autocorrelation_otu(data_type, clr_status=True):
+
+    autocorr_dict = pickle.load(open(autocorrelation_dict_path, "rb"))
+
+    otu_labels = list(autocorr_dict['otu'].keys())
+    otu_labels.sort()
+
+
+    delta_t_env = autocorr_dict['env']['water_temp']['delta_t_env']
+    autocorr_obs_env = autocorr_dict['env']['water_temp']['autocorr_obs_env']
 
     fig = plt.figure(figsize = (20, 20))
     fig.subplots_adjust(bottom= 0.15)
 
-    idx_all = list(range(len(otu_labels_subset)))
+    idx_all = list(range(len(otu_labels)))
     chunk_all = [idx_all[x:x+5] for x in range(0, len(idx_all), 5)]
-
-    n_timepoints = rel_s_by_s_rescaled_rna.shape[1]
-    time_increments = list(range(1, n_timepoints-min_n_obs+1))
-    delta_t = numpy.asarray([days[i] - days[0] for i in time_increments])
 
     for chunk_idx, chunk in enumerate(chunk_all):
 
@@ -63,41 +130,31 @@ def plot_autocorrelation_otu(data_type):
 
             ax = plt.subplot2grid((len(chunk_all), len(chunk_all[0])), (chunk_idx, c_idx))
 
-            if data_type == 'DNA':
-                afd_c = rel_s_by_s_rescaled_dna_log[c,:]
 
-            elif data_type == 'RNA':
-                afd_c = rel_s_by_s_rescaled_rna_log[c,:]
-
-            elif data_type == 'ratio':
-                afd_c = rel_s_by_s_rescaled_ratio_log[c,:]
-
-            else:
-                sys.stderr.write("Argument not recognized!\n")
-                sys.exit()
-
-
-            # rescale using sine fits
-            afd_c_rescaled = (afd_c - param_dict['otu']['param_mean_leastsq'][data_type][c])/param_dict['otu']['amp_leastsq'][data_type][c]
-                        
-            autocorr_obs_c = [numpy.corrcoef(afd_c_rescaled[i:], afd_c_rescaled[:-i])[0,1] for i in time_increments]
+            delta_t_c = autocorr_dict['otu'][otu_labels[c]][data_type]['delta_t']
+            autocorr_obs_c = autocorr_dict['otu'][otu_labels[c]][data_type]['autocorr_obs']
+            
+            #autocorr_obs_c = [numpy.corrcoef(afd_c_rescaled[i:], afd_c_rescaled[:-i])[0,1] for i in time_increments_c]
             #autocorr_pred_c = 0.5*numpy.cos((2*numpy.pi*delta_t)/freq_leastsq_all[c])
-            autocorr_pred_c = 0.5*numpy.cos(freq_leastsq_all[c]*delta_t)
+            #autocorr_pred_c = 0.5*numpy.cos(freq_leastsq_all[c]*delta_t_c)
 
-            ax.scatter(delta_t, autocorr_obs_c, s=8, alpha=1, c=utils.dna_rna_color_dict[data_type], label='Observed')
-            ax.plot(delta_t, autocorr_pred_c, ls='-', lw=1, c=utils.dna_rna_color_dict[data_type], label='Predicted')
+
+            ax.scatter(delta_t_c, autocorr_obs_c, s=7, alpha=1, c=utils.dna_rna_color_dict[data_type], label='Observed')
+            #ax.plot(delta_t_c, autocorr_pred_c, ls='-', lw=1, c=utils.dna_rna_color_dict[data_type], label='Predicted')
+
+            ax.scatter(delta_t_env, autocorr_obs_env, s=7, alpha=1, c='k', label='Water temp.')
+
 
             ax.set_xlabel("Time difference (days), " + r'$\Delta t$', fontsize = 10)
             ax.set_ylabel("Autocorrelation, " + utils.sample_label_dict[data_type], fontsize = 10)
-
-            ax.set_title(param_dict['otu']['otu_labels'][c], fontsize=11)
-
+            ax.set_title(otu_labels[c], fontsize=11)
 
             if (chunk_idx==0) and (c_idx==0):
-                ax.legend(loc='upper left', fontsize=8)
+                ax.legend(loc='upper right', fontsize=8)
     
+
     fig.subplots_adjust(hspace=0.35, wspace=0.40)
-    fig_name = "%sautocorrelation_otu_%s.png" % (config.analysis_directory, data_type)
+    fig_name = "%sautocorrelation_otu_%s%s.png" % (config.analysis_directory, sine_parameter_utils.clr_status_label_dict[clr_status], data_type)
     fig.savefig(fig_name, format='png', bbox_inches = "tight", pad_inches = 0.4, dpi = 600)
     plt.close()
 
@@ -116,6 +173,11 @@ if __name__ == "__main__":
                         help='Data type to plot: RNA, DNA or ratio')
 
     args = parser.parse_args()    
-    plot_autocorrelation_otu(args.data_type)
+
+    #make_autocorrelation_dict()
+
+    plot_autocorrelation_otu(args.data_type, clr_status=True)
+
+    
 
     

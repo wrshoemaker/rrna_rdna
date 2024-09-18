@@ -22,6 +22,7 @@ color_radius = 2
 
 rescaled_label_dict = {'RNA':'Rescaled RNA, ' + r'$r_{i}(t)$', 'DNA': 'Rescaled DNA, ' + r'$d_{i}(i)$', 'ratio': 'Rescaled RNA:DNA, ' + r'$\phi_{i}(t)$'}
 #rescaled_label_dict = {'RNA':'Rescaled RNA, ' + r'$r_{i}(t)$', 'DNA': 'Rescaled DNA, ' + r'$d_{i}(i)$', 'ratio': 'Rescaled RNA:DNA, ' + r'$\phi_{i}(t)$'}
+rescaled_label_clr_dict = {'RNA':'RNA', 'DNA': 'DNA', 'ratio': 'RNA - DNA'}
 
 sample_label_dict = {'RNA': 'RNA', 'DNA':'DNA', 'ratio': 'RNA-DNA ratio'}
 
@@ -35,6 +36,11 @@ taxonomic_ranks = ['domain', 'phylum', 'class', 'order', 'family', 'genus', 'spe
 env_variable_label_dict = {'water_temp': 'Water temperature (°C)', 'specific_conductivity': 'Specific conductivity (mS/cm)', 
                             'dissolved_oxygen': 'Dissolved oxygen (mg/L)', 'salinity': 'Salinity (PSS)',
                             'secchi_depth': 'Secchi depth (m)', 'ph':'pH', 'air_temperature': 'Air temperature (°C)'}
+
+
+env_variable_no_unit_label_dict = {'water_temp': 'Water temperature', 'specific_conductivity': 'Specific conductivity', 
+                            'dissolved_oxygen': 'Dissolved oxygen', 'salinity': 'Salinity',
+                            'secchi_depth': 'Secchi depth', 'ph':'pH', 'air_temperature': 'Air temperature'}
 
 
 def get_p_value_latex_label_dict(p_value):
@@ -51,7 +57,7 @@ def get_p_value_latex_label_dict(p_value):
 
 
 
-def make_colormap(sample_type, n_obs):
+def make_colormap(sample_type, n_obs, lower_linspace_bound=0.1):
 
     if sample_type == 'DNA':
         color_ = 'Blues'
@@ -63,7 +69,7 @@ def make_colormap(sample_type, n_obs):
         print("Argument not recognized")
 
 
-    color_range =  numpy.linspace(0.0, 1.0, n_obs)
+    color_range =  numpy.linspace(lower_linspace_bound, 1.0, n_obs)
     rgb_ = cm.get_cmap(color_)( color_range )
 
     return rgb_
@@ -881,6 +887,130 @@ def estimate_k_and_sigma(s_by_s, min_occupancy=0.2):
     
     return k, sigma, ids, ids2, meanrelabd
    
+
+
+
+
+
+
+def predict_mean_richness(s_by_s, species, totreads=numpy.asarray([])):
+
+    # get squared inverse cv
+    # assume that entries are read counts.
+    rel_s_by_s_np = (s_by_s/s_by_s.sum(axis=0))
+
+    beta_all = []
+    mean_all = []
+
+    for s in rel_s_by_s_np:
+
+        var = numpy.var(s)
+        mean = numpy.mean(s)
+
+        beta = (mean**2)/var
+
+        mean_all.append(mean)
+        beta_all.append(beta)
+
+    beta_all = numpy.asarray(beta_all)
+    mean_all = numpy.asarray(mean_all)
+
+
+    s_by_s_presence_absence = numpy.where(s_by_s > 0, 1, 0)
+    occupancies = s_by_s_presence_absence.sum(axis=1) / s_by_s_presence_absence.shape[1]
+
+    # calcualte total reads if no argument is passed
+    # sloppy quick fix
+    if len(totreads) == 0:
+        totreads = s_by_s.sum(axis=0)
+
+    # calculate mean and variance excluding zeros
+    # tf = mean relative abundances
+    tf = []
+    for afd in s_by_s:
+        afd_no_zeros = afd[afd>0]
+        tf.append(numpy.mean(afd_no_zeros/ totreads[afd>0]))
+
+    tf = numpy.asarray(tf)
+    # go through and calculate the variance for each species
+
+    tvpf_list = []
+    for afd in s_by_s:
+        afd_no_zeros = afd[afd>0]
+
+        N_reads = s_by_s.sum(axis=0)[numpy.nonzero(afd)[0]]
+        tvpf_list.append(numpy.mean(  (afd_no_zeros**2 - afd_no_zeros) / (totreads[afd>0]**2) ))
+
+    tvpf = numpy.asarray(tvpf_list)
+
+    f = occupancies*tf
+    vf= occupancies*tvpf
+
+    # there's this command in Jacopo's code %>% mutate(vf = vf - f^2 )%>%
+    # It's applied after f and vf are calculated, so I think I can use it
+    # This should be equivalent to the mean and variance including zero
+    vf = vf - (f**2)
+
+    beta = (f**2)/vf
+    theta = f/beta
+
+    richness_observed = s_by_s_presence_absence.sum(axis=0)
+    richness_predicted = numpy.asarray([sum(1-((1+theta*totreads_i)**(-1*beta))) for  totreads_i in totreads])
+
+    to_keep = ((~numpy.isnan(richness_observed)) & (~numpy.isnan(richness_predicted)))
+
+    #richness_observed = richness_observed[to_keep]
+    #richness_predicted = richness_predicted[to_keep]
+
+    mean_richness_observed = numpy.mean(richness_observed[to_keep])
+    mean_richness_predicted = numpy.mean(richness_predicted[to_keep])
+
+
+    return mean_richness_observed, mean_richness_predicted
+
+
+
+def calculate_autocorrelation(array, time, min_n_obs=10):
+
+    # makes sure correlations are calcuated for all comparisons with the same time difference 
+
+    rho_all = []
+    delta_t_all = []
+
+    autocorr_dict = {}
+    for t in range(1, len(array)-min_n_obs+1):
+        
+        array_t = array[t:]
+        array_delta_t = array[:-t]
+        delta_t_array = time[t:] - time[:-t]
+
+        for array_t_k_idx, array_t_k in enumerate(array_t):
+
+            if delta_t_array[array_t_k_idx] not in autocorr_dict:
+                autocorr_dict[delta_t_array[array_t_k_idx]] = {}
+                autocorr_dict[delta_t_array[array_t_k_idx]]['array_t'] = []
+                autocorr_dict[delta_t_array[array_t_k_idx]]['array_delta_t'] = []
+
+            autocorr_dict[delta_t_array[array_t_k_idx]]['array_t'].append(array_t_k)
+            autocorr_dict[delta_t_array[array_t_k_idx]]['array_delta_t'].append(array_delta_t[array_t_k_idx])
+
+    delta_t_keys = list(autocorr_dict.keys())
+    delta_t_keys.sort()
+    for delta_t_i in delta_t_keys:
+
+        if len(autocorr_dict[delta_t_i]['array_t']) < min_n_obs:
+            continue
+
+        rho_i = numpy.corrcoef(autocorr_dict[delta_t_i]['array_t'], autocorr_dict[delta_t_i]['array_delta_t'])[0,1]
+        delta_t_all.append(delta_t_i)
+        rho_all.append(rho_i)
+
+    
+    rho_all = numpy.asarray(rho_all)
+    delta_t_all = numpy.asarray(delta_t_all)
+
+       
+    return rho_all, delta_t_all
 
 
 

@@ -31,14 +31,19 @@ metadata_dict = utils.build_metadata_dict()
 sample_type = numpy.asarray([metadata_dict[s]['sample_type'] for s in samples])
 days = numpy.asarray([metadata_dict[s]['day'] for s in samples[(sample_type=='RNA')]])
 
-#s = 3
-s = 3
-n_sites = len(days)
-S = 1000
-N = 100000
+
+gm_color = {0.1:'lightskyblue', 0.3:'dodgerblue', 0.5:'royalblue'}
 
 
-def generate_community_from_sigma_k(k, sigma, n_sites, N, rhogamma=0):
+gm_color_clr = {0.1:'lightskyblue', 0.3:'dodgerblue', 0.5:'royalblue'}
+gm_color_rel = {0.1:'coral', 0.3:'orangered', 0.5:'firebrick'}
+
+
+#amp_colormap = utils.make_colormap('DNA', len(amp_focal_range))
+
+
+
+def generate_community_from_sigma_k(S, k, sigma, n_sites, N, rhogamma=0):
 
     # Extraction of the who vectors of abundances, distributed according to Gamma distributions with the correlation rhogamma
     cov = numpy.ones((n_sites, n_sites))
@@ -65,7 +70,7 @@ def generate_community_from_sigma_k(k, sigma, n_sites, N, rhogamma=0):
     non_zero_idx = numpy.sum(read_counts_multinomial_all, axis=1) > 0
     read_counts_multinomial_all_nonzero = read_counts_multinomial_all[non_zero_idx,:]
 
-    return rel_abundances_all, read_counts_multinomial_all, read_counts_multinomial_all_nonzero, non_zero_idx
+    return abundances_all, rel_abundances_all, read_counts_multinomial_all, read_counts_multinomial_all_nonzero, non_zero_idx
 
 
 
@@ -503,24 +508,29 @@ def oscillation_artifact_simulation(mu, s, S, N, dist, gm_all, n_sites, focal_am
     sine_param_combo_all = list(itertools.product(focal_amp_all, focal_freq_all, focal_phase_all))
 
     param_dict = {}
+    param_dict['true_abundance'] = {}
     param_dict['clr'] = {}
     param_dict['log_rel'] = {}
 
     for otu_type in otu_type_all:
+        param_dict['true_abundance'][otu_type] = {}
         param_dict['clr'][otu_type] = {}
         param_dict['log_rel'][otu_type] = {}
     
         for gm in gm_all:
+            param_dict['true_abundance'][otu_type][gm] = {}
             param_dict['clr'][otu_type][gm] = {}
             param_dict['log_rel'][otu_type][gm] = {}
 
             for sine_param_combo in sine_param_combo_all:
+                param_dict['true_abundance'][otu_type][gm][sine_param_combo] = {}
                 param_dict['clr'][otu_type][gm][sine_param_combo] = {}
                 param_dict['log_rel'][otu_type][gm][sine_param_combo] = {}
 
                 param_dict['clr'][otu_type][gm][sine_param_combo]['num_sampled_species'] = []
                 param_dict['log_rel'][otu_type][gm][sine_param_combo]['num_sampled_species'] = []
 
+                param_dict['true_abundance'][otu_type][gm][sine_param_combo]['afd'] = []
                 param_dict['clr'][otu_type][gm][sine_param_combo]['afd'] = []
                 param_dict['log_rel'][otu_type][gm][sine_param_combo]['afd'] = []
 
@@ -590,10 +600,11 @@ def oscillation_artifact_simulation(mu, s, S, N, dist, gm_all, n_sites, focal_am
                 # generate carrying capacity over time.
                 K_t = numpy.exp((numpy.sin(numpy.outer(days, freq) + phase) * amp) + log_K_0)
 
-                rel_abundances_all, read_counts_multinomial_all, read_counts_multinomial_all_nonzero, non_zero_idx = generate_community_from_sigma_k(K_t, sigmarnd, n_sites, N)
+                abundances_all, rel_abundances_all, read_counts_multinomial_all, read_counts_multinomial_all_nonzero, non_zero_idx = generate_community_from_sigma_k(S, K_t, sigmarnd, n_sites, N)
 
                 # relative abundance
-                rescaled_rel_s_by_s = utils.rescale_s_by_s(read_counts_multinomial_all_nonzero)
+                rel_read_counts_multinomial_all_nonzero = read_counts_multinomial_all_nonzero/numpy.sum(read_counts_multinomial_all_nonzero, axis=0)
+                #rescaled_rel_s_by_s = utils.rescale_s_by_s(read_counts_multinomial_all_nonzero)
                 # all species are used to calculate relative abundance
 
                 # CLR
@@ -613,18 +624,27 @@ def oscillation_artifact_simulation(mu, s, S, N, dist, gm_all, n_sites, focal_am
                     else:
                         rank_idx = -2
 
-                    afd_clr_rank_2 = rescaled_clr_s_by_s[rank_idx,:]
-                    afd_log_rel_rank_2 = numpy.log10(rescaled_rel_s_by_s[rank_idx,:])
+                    #read_counts_multinomial_all_nonzero_focal_rank = read_counts_multinomial_all_nonzero[rank_idx,:]
+                    #rel_read_counts_multinomial_all_nonzero_focal_rank
+
+                    afd_otu = rel_abundances_all[rank_idx,:]
+                    afd_otu = abundances_all[rank_idx,:]
+                    afd_clr_otu = rescaled_clr_s_by_s[rank_idx,:]
+                    afd_log_rel_otu = numpy.log10(rel_read_counts_multinomial_all_nonzero[rank_idx,:])
 
                     # check for zeros in relative abundance
-                    if sum(rescaled_rel_s_by_s[rank_idx,:] == 0) > 0:
+                    if sum(rel_read_counts_multinomial_all_nonzero[rank_idx,:] == 0) > 0:
                         skip_iter = True
                     
-                    if sum(numpy.isnan(afd_clr_rank_2)) > 0:
+                    if sum(numpy.isnan(afd_clr_otu)) > 0:
                         skip_iter = True
+                    
 
-                    afd_iter_dict[gm][sine_param_combo][otu_type]['clr'] = afd_clr_rank_2
-                    afd_iter_dict[gm][sine_param_combo][otu_type]['log_rel'] = afd_log_rel_rank_2
+                    #print(afd_otu)
+                    afd_iter_dict[gm][sine_param_combo][otu_type]['true_abundance'] = afd_otu
+                    afd_iter_dict[gm][sine_param_combo][otu_type]['clr'] = afd_clr_otu
+                    afd_iter_dict[gm][sine_param_combo][otu_type]['log_rel'] = afd_log_rel_otu
+
 
         # repeat process
         if skip_iter == True:
@@ -643,8 +663,9 @@ def oscillation_artifact_simulation(mu, s, S, N, dist, gm_all, n_sites, focal_am
 
                 for otu_type in otu_type_all:
                     
-                    afd_clr_rank_2 = afd_iter_dict[gm][sine_param_combo][otu_type]['clr']
-                    afd_log_rel_rank_2 = afd_iter_dict[gm][sine_param_combo][otu_type]['log_rel']
+                    afd_true_abundance_otu = afd_iter_dict[gm][sine_param_combo][otu_type]['true_abundance']
+                    afd_clr_otu = afd_iter_dict[gm][sine_param_combo][otu_type]['clr']
+                    afd_log_rel_otu = afd_iter_dict[gm][sine_param_combo][otu_type]['log_rel']
 
                     freq_value = 2*numpy.pi/365 # 0.01721420632
                     freq_min = 2*numpy.pi/550 # 0.01142397328 (365+185)
@@ -660,8 +681,8 @@ def oscillation_artifact_simulation(mu, s, S, N, dist, gm_all, n_sites, focal_am
 
                     param_mean_min_clr = -2
                     param_mean_max_clr = 2
-                    param_mean_value_clr = numpy.mean(afd_clr_rank_2)
-                    param_mean_value_log_rel = numpy.mean(afd_log_rel_rank_2)
+                    param_mean_value_clr = numpy.mean(afd_clr_otu)
+                    param_mean_value_log_rel = numpy.mean(afd_log_rel_otu)
 
                     amp_value_log_rel = 1
                     amp_min_log_rel = 1e-3
@@ -682,8 +703,8 @@ def oscillation_artifact_simulation(mu, s, S, N, dist, gm_all, n_sites, focal_am
                                                 param_mean=dict(value=param_mean_value_log_rel, min=param_mean_min_log_rel, max=param_mean_max_log_rel))
 
 
-                    result_brute_clr, fitter_clr = sine_parameter_utils.grid_search_sine_wave(days, afd_clr_rank_2, params_clr)
-                    result_brute_log_rel, fitter_log_rel = sine_parameter_utils.grid_search_sine_wave(days, afd_log_rel_rank_2, params_log_rel)
+                    result_brute_clr, fitter_clr = sine_parameter_utils.grid_search_sine_wave(days, afd_clr_otu, params_clr)
+                    result_brute_log_rel, fitter_log_rel = sine_parameter_utils.grid_search_sine_wave(days, afd_log_rel_otu, params_log_rel)
 
                     best_result_leastsq_clr = sine_parameter_utils.second_rount_optimization(result_brute_clr, fitter_clr)
                     best_result_leastsq_log_rel = sine_parameter_utils.second_rount_optimization(result_brute_log_rel, fitter_log_rel)
@@ -691,8 +712,9 @@ def oscillation_artifact_simulation(mu, s, S, N, dist, gm_all, n_sites, focal_am
                     best_params_leastsq_clr = best_result_leastsq_clr.params
                     best_params_leastsq_log_rel = best_result_leastsq_log_rel.params
 
-                    param_dict['clr'][otu_type][gm][sine_param_combo]['afd'].append(afd_clr_rank_2.tolist())
-                    param_dict['log_rel'][otu_type][gm][sine_param_combo]['afd'].append(afd_log_rel_rank_2.tolist())
+                    param_dict['true_abundance'][otu_type][gm][sine_param_combo]['afd'].append(afd_true_abundance_otu.tolist())
+                    param_dict['clr'][otu_type][gm][sine_param_combo]['afd'].append(afd_clr_otu.tolist())
+                    param_dict['log_rel'][otu_type][gm][sine_param_combo]['afd'].append(afd_log_rel_otu.tolist())
 
                     for p in sine_parameter_utils.param_no_method_all:
                         param_dict['clr'][otu_type][gm][sine_param_combo]['%s_leastsq' % p].append(best_params_leastsq_clr[p].value)
@@ -732,7 +754,6 @@ def oscillation_artifact_simulation(mu, s, S, N, dist, gm_all, n_sites, focal_am
 
 def plot_oscillation_artifact_simulation():
 
-    gm_color = {0.1:'lightskyblue', 0.3:'dodgerblue', 0.5:'royalblue'}
 
     fig = plt.figure(figsize = (8, 8))
 
@@ -752,7 +773,7 @@ def plot_oscillation_artifact_simulation():
 
                 amp_inferred = [numpy.mean(param_dict[method][rank][gm][p]['amp_leastsq']) for p in param_combo_all]
 
-
+                #print([numpy.mean(param_dict[method][rank][gm][p]['freq_leastsq']) for p in param_combo_all])
                 if gm_idx == 0:
 
                     if rank == 'focal':
@@ -772,10 +793,8 @@ def plot_oscillation_artifact_simulation():
                 ax.plot(amp_first_rank, amp_inferred, lw=2, ls='-', c=gm_color[gm], label='Std. dev of ' + r'$\sigma^{2}$' ' dist. = ' + str(round(gm, 3)))
                 ax.set_xlabel('True amplitude of oscillating focal OTU', fontsize=11)
 
-
                 if method_idx == 0:
                     ax.legend(loc='upper left', fontsize=8)
-
 
 
     fig.subplots_adjust(hspace=0.3 , wspace=0.3)
@@ -843,9 +862,14 @@ if __name__ == "__main__":
 
     print("Running...")
 
+    s = 3
+    n_sites = len(days)
+    S = 1000
+    N = 100000
+
     #oscillation_artifact_simulation(0.001, s, S, N, 'exp', [0.1, 0.3, 0.5], n_sites, focal_amp_all=[0, 0.5, 1, 1.5, 2], n_iter=10)
 
-    plot_oscillation_artifact_simulation()
+    #plot_oscillation_artifact_simulation()
 
     #plot_oscillation_artifact_simulation_afd(method='clr')
     #plot_oscillation_artifact_simulation_afd(method='log_rel')

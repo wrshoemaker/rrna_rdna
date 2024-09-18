@@ -17,6 +17,10 @@ numpy.random.seed(123456789)
 
 null_predict_change_dict_path = config.data_directory + 'null_predict_change_%sdict.pickle'
 
+metadata_dict = utils.build_metadata_dict()
+
+
+
 
 def get_null_predict_change_dict_path(otu_to_remove=None):
 
@@ -31,6 +35,7 @@ def get_null_predict_change_dict_path(otu_to_remove=None):
 
 
 
+
 def make_null_predict_change_dict(n_perm = 10000, otu_to_remove=None):
 
 
@@ -42,7 +47,8 @@ def make_null_predict_change_dict(n_perm = 10000, otu_to_remove=None):
 
     metadata_dict = utils.build_metadata_dict()
     s_by_s, otu_labels, samples = utils.load_count_data()
-    rel_s_by_s_dna, rel_s_by_s_rna, otu_labels_subset = utils.subset_s_by_s_occupancy(s_by_s, otu_labels, samples, min_occupancy=1)
+    #rel_s_by_s_dna, rel_s_by_s_rna, otu_labels_subset = utils.subset_s_by_s_occupancy(s_by_s, otu_labels, samples, min_occupancy=1)
+    clr_s_by_s_dna, clr_s_by_s_rna, otu_labels_subset = utils.clr_transform(s_by_s, otu_labels, samples)
 
     if otu_to_remove != None:
         otu_to_keep_idx = (otu_labels_subset != otu_to_remove)
@@ -55,42 +61,50 @@ def make_null_predict_change_dict(n_perm = 10000, otu_to_remove=None):
     sample_type = numpy.asarray([metadata_dict[s]['sample_type'] for s in samples])
     days = numpy.asarray([metadata_dict[s]['day'] for s in samples[(sample_type=='RNA')]])
 
-    # returns rescaled relative abundance
-    s_by_s_rescaled_dna = utils.rescale_s_by_s(rel_s_by_s_dna)
-    s_by_s_rescaled_rna = utils.rescale_s_by_s(rel_s_by_s_rna)
-    s_by_s_rescaled_ratio = s_by_s_rescaled_rna/s_by_s_rescaled_dna
+    clr_s_by_s_rescaled_dna = (clr_s_by_s_dna.T - numpy.mean(clr_s_by_s_dna, axis=1)).T
+    clr_s_by_s_rescaled_rna = (clr_s_by_s_rna.T - numpy.mean(clr_s_by_s_rna, axis=1)).T
+    clr_s_by_s_rescaled_ratio = clr_s_by_s_rescaled_rna - clr_s_by_s_rescaled_dna
 
-    # average the ratio obser species
-    mean_rescaled_ratio_over_otus = numpy.mean(s_by_s_rescaled_ratio, axis=0)
-    s_by_s_rescaled_ratio_rescaled_by_otus = s_by_s_rescaled_ratio/mean_rescaled_ratio_over_otus
-    s_by_s_rescaled_ratio_rescaled_by_otus_log10 = numpy.log10(s_by_s_rescaled_ratio_rescaled_by_otus)
-
-    # change in relative abundance between timepoints
-    ratio_s_by_s_rescaled_dna_log10 = numpy.log10(s_by_s_rescaled_dna[:,1:]/s_by_s_rescaled_dna[:,:-1])
-
+    diff_clr_s_by_s_rescaled_dna = clr_s_by_s_rescaled_dna[:,1:] - clr_s_by_s_rescaled_dna[:,:-1]
     time_idx_range = numpy.arange(len(days))
 
+    #print(diff_clr_s_by_s_rescaled_dna)
+
+    sample_type = numpy.asarray([metadata_dict[s]['sample_type'] for s in samples])
+    samples_rna = samples[(sample_type=='RNA')]
+    days = numpy.asarray([metadata_dict[s]['day'] for s in samples_rna])
+    #env_variable_all = ['water_temp', 'specific_conductivity', 'dissolved_oxygen', 'salinity', 'secchi_depth', 'ph', 'air_temperature']
+    env_variable_array = numpy.asarray([metadata_dict[s]['water_temp'] for s in samples_rna])
+    env_to_keep_idx = ~numpy.isnan(env_variable_array)
 
     null_predict_change_dict = {}
     for otu_i_idx, otu_i in enumerate(otu_labels_subset):
+        
         null_predict_change_dict[otu_i] = {}
         null_predict_change_dict[otu_i]['slope_null_list'] = []  
         null_predict_change_dict[otu_i]['intercept_null_list'] = []  
         null_predict_change_dict[otu_i]['rho_null_list'] = []  
 
-        s_by_s_rescaled_ratio_rescaled_by_otus_log10_i = s_by_s_rescaled_ratio_rescaled_by_otus_log10[otu_i_idx,:-1]
-        ratio_s_by_s_rescaled_dna_log10_i = ratio_s_by_s_rescaled_dna_log10[otu_i_idx,:]
+        clr_s_by_s_rescaled_ratio_i = clr_s_by_s_rescaled_ratio[otu_i_idx,:-1]
+        diff_clr_s_by_s_rescaled_dna_i = diff_clr_s_by_s_rescaled_dna[otu_i_idx,:]
 
-        null_predict_change_dict[otu_i]['rescaled_rna_dna_ratio_log10'] = s_by_s_rescaled_ratio_rescaled_by_otus_log10_i.tolist()
-        null_predict_change_dict[otu_i]['ratio_rescaked_dna_log10'] = ratio_s_by_s_rescaled_dna_log10_i.tolist()
+        null_predict_change_dict[otu_i]['clr_s_by_s_rescaled_ratio'] = clr_s_by_s_rescaled_ratio_i.tolist()
+        null_predict_change_dict[otu_i]['diff_clr_s_by_s_rescaled_dna'] = diff_clr_s_by_s_rescaled_dna_i.tolist()
 
         # slope and intercept
-        slope, intercept, r_value, p_value, std_err = stats.linregress(s_by_s_rescaled_ratio_rescaled_by_otus_log10_i, ratio_s_by_s_rescaled_dna_log10_i)
+        slope, intercept, r_value, p_value, std_err = stats.linregress(clr_s_by_s_rescaled_ratio_i, diff_clr_s_by_s_rescaled_dna_i)
         #null_predict_change_dict[otu_i]['rho_obs'] = numpy.corrcoef(s_by_s_rescaled_ratio_rescaled_by_otus_log10_i,ratio_s_by_s_rescaled_dna_log10_i )[0,1]
         null_predict_change_dict[otu_i]['slope_obs'] = slope
         null_predict_change_dict[otu_i]['intercept_obs'] = intercept
         null_predict_change_dict[otu_i]['rho_obs'] = r_value
 
+        # get environmental temperature correlation...
+        rho_temp_clr_dna = numpy.corrcoef(clr_s_by_s_rescaled_dna[otu_i_idx,:][env_to_keep_idx], env_variable_array[env_to_keep_idx])[0,1]
+        rho_temp_clr_rna = numpy.corrcoef(clr_s_by_s_rescaled_rna[otu_i_idx,:][env_to_keep_idx], env_variable_array[env_to_keep_idx])[0,1]
+
+        null_predict_change_dict[otu_i]['rho_temp_clr_dna'] = rho_temp_clr_dna
+        null_predict_change_dict[otu_i]['rho_temp_clr_rna'] = rho_temp_clr_rna
+   
 
     sys.stderr.write("Generating distribution of null correlations via permuting time labels...\n")
     for n in range(n_perm):
@@ -101,27 +115,39 @@ def make_null_predict_change_dict(n_perm = 10000, otu_to_remove=None):
 
         time_idx_range_perm = numpy.random.permutation(time_idx_range)
 
-        s_by_s_rescaled_dna_null = s_by_s_rescaled_dna[:,time_idx_range_perm]
-        ratio_s_by_s_rescaled_dna_log10_null = numpy.log10(s_by_s_rescaled_dna_null[:,1:]/s_by_s_rescaled_dna_null[:,:-1])
-
         # permute both RNA and DNA timeseries
-        s_by_s_rescaled_rna_null = s_by_s_rescaled_rna[:,time_idx_range_perm]
-        s_by_s_rescaled_ratio_null = s_by_s_rescaled_rna_null/s_by_s_rescaled_dna_null
-        s_by_s_rescaled_ratio_rescaled_by_otus_null = s_by_s_rescaled_ratio_null/numpy.mean(s_by_s_rescaled_ratio_null, axis=0)
-        s_by_s_rescaled_ratio_rescaled_by_otus_log10_null = numpy.log10(s_by_s_rescaled_ratio_rescaled_by_otus_null)
+        clr_s_by_s_dna_null = clr_s_by_s_dna[:,time_idx_range_perm]
+        clr_s_by_s_rna_null = clr_s_by_s_rna[:,time_idx_range_perm]
+
+        # rescale null
+        clr_s_by_s_dna_null_rescaled = (clr_s_by_s_dna_null.T - numpy.mean(clr_s_by_s_dna_null, axis=1)).T
+        clr_s_by_s_rna_null_rescaled = (clr_s_by_s_rna_null.T - numpy.mean(clr_s_by_s_rna_null, axis=1)).T
+        clr_s_by_s_ratio_null_rescaled = clr_s_by_s_rna_null_rescaled - clr_s_by_s_dna_null_rescaled
+
+        diff_clr_s_by_s_dna_null_rescaled = clr_s_by_s_dna_null_rescaled[:,1:] - clr_s_by_s_dna_null_rescaled[:,:-1]
 
         for otu_i_idx, otu_i in enumerate(otu_labels_subset):
 
-            mean_rescaled_ratio_over_otus_i_null = s_by_s_rescaled_ratio_rescaled_by_otus_log10_null[otu_i_idx,:-1]
-            ratio_s_by_s_rescaled_dna_log10_null_i = ratio_s_by_s_rescaled_dna_log10_null[otu_i_idx,:]
+            clr_s_by_s_ratio_null_rescaled_i = clr_s_by_s_ratio_null_rescaled[otu_i_idx,:-1]
+            diff_clr_s_by_s_dna_null_rescaled_i = diff_clr_s_by_s_dna_null_rescaled[otu_i_idx,:]
 
             #rho_null = numpy.corrcoef(mean_rescaled_ratio_over_otus_i_null, ratio_s_by_s_rescaled_dna_log10_null_i)[0,1]
-            slope_null, intercept_null, r_value_null, p_value_null, std_err_null = stats.linregress(mean_rescaled_ratio_over_otus_i_null, ratio_s_by_s_rescaled_dna_log10_null_i)
+            slope_null, intercept_null, r_value_null, p_value_null, std_err_null = stats.linregress(clr_s_by_s_ratio_null_rescaled_i, diff_clr_s_by_s_dna_null_rescaled_i)
             
             #null_predict_change_dict[otu_i]['rho_null_list'].append(rho_null)
             null_predict_change_dict[otu_i]['slope_null_list'].append(slope_null)
             null_predict_change_dict[otu_i]['intercept_null_list'].append(intercept_null)
             null_predict_change_dict[otu_i]['rho_null_list'].append(r_value_null)
+
+
+    # calculate Z-scores
+    for otu_i_idx, otu_i in enumerate(otu_labels_subset):
+        for stat in ['slope', 'intercept', 'rho']:
+
+            stat_null = numpy.asarray(null_predict_change_dict[otu_i]['%s_null_list' % stat])
+
+            z_score_stat = (null_predict_change_dict[otu_i]['%s_obs' % stat] - numpy.mean(stat_null)) / numpy.std(stat_null)
+            null_predict_change_dict[otu_i]['%s_z_score' % stat] = z_score_stat
 
 
     #sys.stderr.write("%d permutations done...\n" % n)
@@ -172,28 +198,28 @@ def plot_predict_change_scatter(otu_to_remove=None):
 
             # [,:-1] because we're comparing it to the ratio of DNA abundances
             
-            rescaled_rna_dna_ratio_log10 = numpy.asarray(null_predict_change_dict[c]['rescaled_rna_dna_ratio_log10'])
-            ratio_rescaked_dna_log10 = numpy.asarray(null_predict_change_dict[c]['ratio_rescaked_dna_log10'])
+            clr_s_by_s_rescaled_ratio_c = numpy.asarray(null_predict_change_dict[c]['clr_s_by_s_rescaled_ratio'])
+            diff_clr_s_by_s_rescaled_dna_c = numpy.asarray(null_predict_change_dict[c]['diff_clr_s_by_s_rescaled_dna'])
 
-            ax.scatter(10**rescaled_rna_dna_ratio_log10, 10**ratio_rescaked_dna_log10, s=8, alpha=1, c='k', zorder=2)
+            ax.scatter(clr_s_by_s_rescaled_ratio_c, diff_clr_s_by_s_rescaled_dna_c, s=8, alpha=1, c='k', zorder=2)
             ax.set_title(c, fontsize=11)
-            ax.set_xlabel("Rescaled RNA:DNA ratio, " + r'$ \frac{\phi_{i}(t)}{\left< \phi(t) \right>_{S}}$', fontsize=10)
-            ax.set_ylabel("Ratio of DNA relative\nabundances b/w timepoints, " + r'$ \frac{\tilde{x}_{i}^{d}(t + \delta t)}{\tilde{x}_{i}^{d}(t )}$', fontsize=10)
+            ax.set_xlabel("Difference of RNA and DNA CLR", fontsize=10)
+            ax.set_ylabel("Change in DNA CLR b/w timepoints", fontsize=10)
 
             # regression
             #log10_mean_rescaled_ratio_over_otus_c = numpy.log10(mean_rescaled_ratio_over_otus_c)
             #log10_ratio_s_by_s_rescaled_dna_c = numpy.log10(ratio_s_by_s_rescaled_dna_c)
-            slope, intercept, r_value, p_value, std_err = stats.linregress(rescaled_rna_dna_ratio_log10, ratio_rescaked_dna_log10)
+            slope, intercept, r_value, p_value, std_err = stats.linregress(clr_s_by_s_rescaled_ratio_c, diff_clr_s_by_s_rescaled_dna_c)
             
-            x_range_ =  numpy.linspace(min(rescaled_rna_dna_ratio_log10), max(ratio_rescaked_dna_log10), 10000)
+            x_range_ =  numpy.linspace(min(clr_s_by_s_rescaled_ratio_c), max(clr_s_by_s_rescaled_ratio_c), 10000)
             y_fit_range = slope*x_range_ + intercept
 
             if p_value < 0.05:
-                ax.plot(10**x_range_, 10**y_fit_range, ls='--', lw=2.5, c='k')
+                ax.plot(x_range_, y_fit_range, ls='--', lw=2.5, c='k')
                 print( r_value**2)
 
-            ax.set_xscale('log', basex=10)
-            ax.set_yscale('log', basey=10)
+            #ax.set_xscale('log', basex=10)
+            #ax.set_yscale('log', basey=10)
 
             #print(slope, r_value**2)
 
@@ -300,12 +326,64 @@ def plot_slope_comparison_no_otu1():
 
 
 
+def plot_predict_change_vs_temp_rho():
+
+    predict_dict = load_null_predict_change_dict_path()
+
+    otu_to_plot = list(predict_dict.keys())
+
+    rho_obs_all = [predict_dict[o]['rho_z_score'] for o in otu_to_plot]
+
+    #rho_temp_clr_rna_all = [predict_dict[o]['rho_temp_clr_rna'] for o in otu_to_plot]
+    #rho_temp_clr_dna_all = [predict_dict[o]['rho_temp_clr_dna'] for o in otu_to_plot]
+
+    # autocorr correlation
+    import plot_autocorrelation_otu
+    autocorr_dict = pickle.load(open(plot_autocorrelation_otu.autocorrelation_dict_path, "rb"))
 
 
+    autocorr_dna = [autocorr_dict['otu'][o]['DNA']['rho_autocorr_clr_vs_temp'] for o in otu_to_plot]
+    autocorr_rna = [autocorr_dict['otu'][o]['RNA']['rho_autocorr_clr_vs_temp'] for o in otu_to_plot]
+
+    fig = plt.figure(figsize = (8, 4))
+    fig.subplots_adjust(bottom= 0.15)
+
+    ax_dna = plt.subplot2grid((1, 2), (0, 0))
+    ax_rna = plt.subplot2grid((1, 2), (0, 1))
+
+    ax_dna.scatter(rho_obs_all, autocorr_dna, s=20, c=utils.dna_rna_color_dict['DNA'])
+    ax_rna.scatter(rho_obs_all, autocorr_rna, s=20, c=utils.dna_rna_color_dict['RNA'])
+    
+    ax_dna.set_title('DNA', fontsize=14)
+    ax_rna.set_title('RNA', fontsize=14)
+
+    ax_dna.set_xlabel('Z-score of corr. b/w\nRNA/DNA(t) and DNA(t+delta t)', fontsize=10)
+    ax_rna.set_xlabel('Z-score of corr. b/w\nRNA/DNA(t) and DNA(t+delta t)', fontsize=10)
+
+    ax_dna.set_ylabel("Correlation between CLR and\nwater temp. autocorr. functions", fontsize=10)
+    ax_rna.set_ylabel("Correlation between CLR and\nwater temp. autocorr. functions", fontsize=10)
+
+    fig.subplots_adjust(hspace=0.35, wspace=0.40)
+    fig_name = "%spredict_change_vs_temp_rho.png" % (config.analysis_directory)
+    fig.savefig(fig_name, format='png', bbox_inches = "tight", pad_inches = 0.4, dpi = 600)
+    plt.close()
+
+
+
+
+
+
+plot_predict_change_vs_temp_rho()
+
+#make_null_predict_change_dict()
+
+
+# make_null_predict_change_dict()
 #plot_predict_change_scatter()
+#plot_predict_change_null_hist()
 
 #plot_predict_change_null_hist()
-#make_null_predict_change_dict()
+#()
 #make_null_predict_change_dict(otu_to_remove='Otu000001')
 #make_plot()
 
@@ -314,4 +392,4 @@ def plot_slope_comparison_no_otu1():
 
 
 
-plot_slope_comparison_no_otu1()
+#plot_slope_comparison_no_otu1()
