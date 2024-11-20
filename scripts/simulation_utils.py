@@ -2,14 +2,20 @@ import os
 import sys
 import pickle
 import numpy
-from scipy.special import polygamma
+from scipy.special import polygamma, digamma
 from scipy.stats import norm
 from scipy.stats import gamma
+from scipy.stats import gmean
+from scipy.optimize import fsolve
+
+
 import utils
 import config
 import sine_parameter_utils
 from lmfit import Minimizer, create_params, fit_report
 import itertools
+
+
 
 import matplotlib.pyplot as plt
 from matplotlib import cm
@@ -21,6 +27,10 @@ numpy.random.seed(123456789)
 
 
 param_oscillation_artifact_simulation_path = config.data_directory + 'param_oscillation_artifact_simulation_dict.pickle'
+compare_clr_to_true_abundance_dict_path = config.data_directory + 'compare_clr_to_true_abundance_dict.pickle'
+compare_clr_to_true_abundance_oscillating_dict_path = config.data_directory + 'compare_clr_to_true_abundance_oscillating_dict.pickle'
+
+data_collapse_simulation_path = config.data_directory + 'data_collapse_simulation.pickle'
 
 
 method_label_dict = {'log_rel': 'Rescaled log rel.', 'clr': 'CLR'}
@@ -53,7 +63,15 @@ def generate_community_from_sigma_k(S, k, sigma, n_sites, N, rhogamma=0):
     Z = numpy.random.multivariate_normal(numpy.asarray([0]*n_sites), cov, S, tol=1e-5)
     U = norm.cdf(Z)
 
-    abundances_all = [gamma.ppf(U[:,idx], numpy.divide(2,sigma)-1, scale=sigma*k[idx,:]/2) for idx in range(n_sites)]
+    # check if the carrying capacity for each species is a vector (i.e., time-dependent) or a constant
+    if len(k.shape) == 1:
+        abundances_all = [gamma.ppf(U[:,idx], numpy.divide(2,sigma)-1, scale=sigma*k[idx]/2) for idx in range(n_sites)]
+
+    else:
+        # a shape of 2D, representing a matrix
+        abundances_all = [gamma.ppf(U[:,idx], numpy.divide(2,sigma)-1, scale=sigma*k[idx,:]/2) for idx in range(n_sites)]
+    
+    #abundances_all = [gamma.ppf(U[:,idx], numpy.divide(2,sigma)-1, scale=sigma*k[idx,:]/2) for idx in range(n_sites)]
     abundances_all = numpy.asarray(abundances_all).T
     # Normalise, to have relative abundances
     rel_abundances_all =  abundances_all/numpy.sum(abundances_all, axis=0)
@@ -535,8 +553,8 @@ def oscillation_artifact_simulation(mu, s, S, N, dist, gm_all, n_sites, focal_am
                 param_dict['log_rel'][otu_type][gm][sine_param_combo]['afd'] = []
 
                 for p in sine_parameter_utils.param_no_method_all:
-                    param_dict['clr'][otu_type][gm][sine_param_combo]['%s_leastsq' % p] = []
-                    param_dict['log_rel'][otu_type][gm][sine_param_combo]['%s_leastsq' % p] = []
+                    param_dict['clr'][otu_type][gm][sine_param_combo]['%s_mle' % p] = []
+                    param_dict['log_rel'][otu_type][gm][sine_param_combo]['%s_mle' % p] = []
 
 
     if type(N) == int:
@@ -550,7 +568,7 @@ def oscillation_artifact_simulation(mu, s, S, N, dist, gm_all, n_sites, focal_am
 
     sys.stderr.write("Running simulations...\n")
     #for n in range(n_iter):
-    while len(param_dict['clr'][otu_type][gm][sine_param_combo]['amp_leastsq']) < n_iter:
+    while len(param_dict['clr'][otu_type][gm][sine_param_combo]['amp_mle']) < n_iter:
 
         skip_iter = False
 
@@ -656,7 +674,7 @@ def oscillation_artifact_simulation(mu, s, S, N, dist, gm_all, n_sites, focal_am
             for sine_param_combo in sine_param_combo_all:
 
                 focal_amp, focal_freq, focal_phase = sine_param_combo[0], sine_param_combo[1], sine_param_combo[2]
-                sys.stderr.write("Parameter sigma exp = %.2f, Amp = %.2f, Freq = %.4f, Phase = %.3f, %s, Iter = %d ...\n" % (gm, focal_amp, focal_freq, focal_phase, otu_type, len(param_dict['clr'][otu_type][gm][sine_param_combo]['amp_leastsq'])))
+                sys.stderr.write("Parameter sigma exp = %.2f, Amp = %.2f, Freq = %.4f, Phase = %.3f, %s, Iter = %d ...\n" % (gm, focal_amp, focal_freq, focal_phase, otu_type, len(param_dict['clr'][otu_type][gm][sine_param_combo]['amp_mle'])))
 
                 param_dict['log_rel'][otu_type][gm][sine_param_combo]['num_sampled_species'].append(afd_iter_dict[gm][sine_param_combo]['num_sampled_species_log_rel'])
                 param_dict['clr'][otu_type][gm][sine_param_combo]['num_sampled_species'].append(afd_iter_dict[gm][sine_param_combo]['num_sampled_species_clr'])
@@ -667,6 +685,9 @@ def oscillation_artifact_simulation(mu, s, S, N, dist, gm_all, n_sites, focal_am
                     afd_clr_otu = afd_iter_dict[gm][sine_param_combo][otu_type]['clr']
                     afd_log_rel_otu = afd_iter_dict[gm][sine_param_combo][otu_type]['log_rel']
 
+                    afd_exp_clr_otu = numpy.exp(afd_clr_otu)
+                    afd_rel_otu = numpy.exp(afd_log_rel_otu)
+
                     freq_value = 2*numpy.pi/365 # 0.01721420632
                     freq_min = 2*numpy.pi/550 # 0.01142397328 (365+185)
                     freq_max = 2*numpy.pi/180 # 0.034906585 (365-185)
@@ -675,55 +696,77 @@ def oscillation_artifact_simulation(mu, s, S, N, dist, gm_all, n_sites, focal_am
                     phase_min = 0
                     phase_max = 2*numpy.pi
 
-                    amp_value_clr = 1
-                    amp_min_clr = 1e-3
-                    amp_max_clr = 40
+                    amp_value = 1
+                    amp_min = 1e-3
+                    amp_max = 10
 
-                    param_mean_min_clr = -2
-                    param_mean_max_clr = 2
-                    param_mean_value_clr = numpy.mean(afd_clr_otu)
-                    param_mean_value_log_rel = numpy.mean(afd_log_rel_otu)
+                    #param_mean_min_clr = -2
+                    #param_mean_max_clr = 2
+                    #param_mean_value_clr = numpy.mean(afd_clr_otu)
+                    #param_mean_value_log_rel = numpy.mean(afd_log_rel_otu)
 
-                    amp_value_log_rel = 1
-                    amp_min_log_rel = 1e-3
-                    amp_max_log_rel = 3
+                    #param_mean_min_log_rel = -0.5
+                    #param_mean_max_log_rel = 0.5
 
-                    param_mean_min_log_rel = -0.5
-                    param_mean_max_log_rel = 0.5
+                    param_mean_value_exp_afd_clr = numpy.mean(afd_exp_clr_otu)
+                    param_min_value_exp_afd_clr = min(afd_exp_clr_otu)
+                    param_max_value_exp_afd_clr = max(afd_exp_clr_otu)
 
+                    param_mean_value_afd_rel = numpy.mean(afd_rel_otu)
+                    param_min_value_afd_rel = min(afd_rel_otu)
+                    param_max_value_afd_rel = max(afd_rel_otu)
 
-                    params_clr = create_params(amp=dict(value=amp_value_clr, min=amp_min_clr, max=amp_max_clr),
+     
+
+                    params_afd_exp_clr = create_params(amp=dict(value=amp_value, min=amp_min, max=amp_max),
                                                 freq=dict(value=freq_value, min=freq_min, max=freq_max),
                                                 phase=dict(value=phase_value, min=phase_min, max=phase_max),
-                                                param_mean=dict(value=param_mean_value_clr, min=param_mean_min_clr, max=param_mean_max_clr))
+                                                param_mean=dict(value=param_mean_value_exp_afd_clr, min=param_min_value_exp_afd_clr, max=param_max_value_exp_afd_clr))
 
-                    params_log_rel = create_params(amp=dict(value=amp_value_log_rel, min=amp_min_log_rel, max=amp_max_log_rel),
+
+                    params_afd_rel = create_params(amp=dict(value=amp_value, min=amp_min, max=amp_max),
                                                 freq=dict(value=freq_value, min=freq_min, max=freq_max),
                                                 phase=dict(value=phase_value, min=phase_min, max=phase_max),
-                                                param_mean=dict(value=param_mean_value_log_rel, min=param_mean_min_log_rel, max=param_mean_max_log_rel))
+                                                param_mean=dict(value=param_mean_value_afd_rel, min=param_min_value_afd_rel, max=param_max_value_afd_rel))
 
 
-                    result_brute_clr, fitter_clr = sine_parameter_utils.grid_search_sine_wave(days, afd_clr_otu, params_clr)
-                    result_brute_log_rel, fitter_log_rel = sine_parameter_utils.grid_search_sine_wave(days, afd_log_rel_otu, params_log_rel)
+                    beta_estimate_clr, sigma_estimate_clr = mle_sigma(afd_exp_clr_otu)
+                    result_brute_clr, fitter_clr = sine_parameter_utils.grid_search_mle_sine_wave(days, afd_exp_clr_otu, params_afd_exp_clr, beta_estimate_clr)
+                    #best_params_brute_clr = result_brute_clr.params
 
-                    best_result_leastsq_clr = sine_parameter_utils.second_rount_optimization(result_brute_clr, fitter_clr)
-                    best_result_leastsq_log_rel = sine_parameter_utils.second_rount_optimization(result_brute_log_rel, fitter_log_rel)
 
-                    best_params_leastsq_clr = best_result_leastsq_clr.params
-                    best_params_leastsq_log_rel = best_result_leastsq_log_rel.params
+                    beta_estimate_rel, sigma_estimaterel = mle_sigma(params_afd_rel)
+                    result_brute_rel, fitter_rel = sine_parameter_utils.grid_search_mle_sine_wave(days, afd_rel_otu, params_afd_rel, beta_estimate_rel)
+                    #best_params_brute_rel = result_brute_rel.params
+
+                    #result_brute_clr, fitter_clr = sine_parameter_utils.grid_search_sine_wave(days, afd_clr_otu, params_exp_afd_clr)
+                    #result_brute_log_rel, fitter_log_rel = sine_parameter_utils.grid_search_sine_wave(days, afd_log_rel_otu, params_afd_rel)
+
+                    #best_result_leastsq_clr = sine_parameter_utils.second_rount_optimization(result_brute_clr, fitter_clr)
+                    #best_result_leastsq_log_rel = sine_parameter_utils.second_rount_optimization(result_brute_log_rel, fitter_log_rel)
+
+                    #best_params_leastsq_clr = best_result_leastsq_clr.params
+                    #best_params_leastsq_log_rel = best_result_leastsq_log_rel.params
+
+                    best_result_mle_clr = sine_parameter_utils.second_round_optimization_mle(result_brute_clr, fitter_clr, beta_estimate_clr)
+                    best_params_mle_clr = best_result_mle_clr.params
+
+                    best_result_mle_rel = sine_parameter_utils.second_round_optimization_mle(result_brute_rel, fitter_rel, beta_estimate_rel)
+                    best_params_mle_rel = best_result_mle_rel.params
+
 
                     param_dict['true_abundance'][otu_type][gm][sine_param_combo]['afd'].append(afd_true_abundance_otu.tolist())
                     param_dict['clr'][otu_type][gm][sine_param_combo]['afd'].append(afd_clr_otu.tolist())
                     param_dict['log_rel'][otu_type][gm][sine_param_combo]['afd'].append(afd_log_rel_otu.tolist())
 
                     for p in sine_parameter_utils.param_no_method_all:
-                        param_dict['clr'][otu_type][gm][sine_param_combo]['%s_leastsq' % p].append(best_params_leastsq_clr[p].value)
-                        param_dict['log_rel'][otu_type][gm][sine_param_combo]['%s_leastsq' % p].append(best_params_leastsq_log_rel[p].value)
+                        param_dict['clr'][otu_type][gm][sine_param_combo]['%s_mle' % p].append(best_params_mle_clr[p].value)
+                        param_dict['log_rel'][otu_type][gm][sine_param_combo]['%s_mle' % p].append(best_params_mle_rel[p].value)
 
                         if otu_type == 'nonfocal':
 
                             if p == 'amp':
-                                print(best_params_leastsq_clr[p].value, best_params_leastsq_log_rel[p].value)
+                                print('Amp', best_params_mle_clr[p].value, best_params_mle_rel[p].value)
 
 
 
@@ -771,7 +814,7 @@ def plot_oscillation_artifact_simulation():
 
                 amp_first_rank = [s[0] for s in param_combo_all]
 
-                amp_inferred = [numpy.mean(param_dict[method][rank][gm][p]['amp_leastsq']) for p in param_combo_all]
+                amp_inferred = [numpy.mean(param_dict[method][rank][gm][p]['amp_mle']) for p in param_combo_all]
 
                 #print([numpy.mean(param_dict[method][rank][gm][p]['freq_leastsq']) for p in param_combo_all])
                 if gm_idx == 0:
@@ -797,8 +840,12 @@ def plot_oscillation_artifact_simulation():
                     ax.legend(loc='upper left', fontsize=8)
 
 
+                if method_idx + rank_idx == 2:
+                    ax.set_ylim([-0.05, 0.58])
+
+
     fig.subplots_adjust(hspace=0.3 , wspace=0.3)
-    fig_name = "%stest_oscillation_sim.png" % config.analysis_directory
+    fig_name = "%soscillation_sim_results.png" % config.analysis_directory
     fig.savefig(fig_name, format='png', bbox_inches = "tight", pad_inches = 0.4, dpi = 600)
     plt.close()
 
@@ -849,9 +896,434 @@ def plot_oscillation_artifact_simulation_afd(method='clr'):
     fig.savefig(fig_name, format='png', bbox_inches = "tight", pad_inches = 0.4, dpi = 600)
     plt.close()
 
-        
 
 
+def mle_sigma(afd):
+
+    log_mean_estimate = numpy.log(numpy.mean(afd))
+    mean_log_estimate = numpy.mean(numpy.log(afd))
+
+    def sigma_func(beta, mean_log_n, log_mean_n):
+        return numpy.log(beta) - digamma(beta) - log_mean_n + mean_log_n
+    
+    s = log_mean_estimate - mean_log_estimate
+    beta_init = (3 - s + numpy.sqrt((s-3)**2 + 24*s)) / (12*s)
+
+    beta_estimate = fsolve(sigma_func, beta_init, args=(mean_log_estimate, log_mean_estimate))[0]
+    sigma_estimate = 2/(beta_estimate + 1)
+
+    return beta_estimate, sigma_estimate
+
+
+
+
+def make_compare_clr_to_true_abundance_dict(n_iter = 10):
+
+    #This function  generates the parameters K and sigma for two communities with given parameters (mu, s),
+    # S species, sigma^2 distributed as 'dist' (if dist is exponential, with average gm), correlation rho between the values of K
+    # and correlation rhogamma between the Gamma-distributed fluctuations of abundance
+    #sigma = 0.7
+    #k = 0.01
+
+    sigma_all = numpy.logspace(-2, numpy.log10(1), base=10, num=10)
+    k_all = numpy.logspace(-4, -1, base=10, num=10)
+    n_samples = 100
+    n_reads = numpy.asarray([int(1e6)]*n_samples)
+
+    mle_dict = {}
+
+    for k in k_all:
+
+        if k not in mle_dict:
+            mle_dict[k] = {}
+
+        for sigma in sigma_all:
+
+            mle_dict[k][sigma] = {}
+            mle_dict[k][sigma]['sigma_inferred_clr'] = []
+            mle_dict[k][sigma]['sigma_inferred_rel'] = []
+            #mle_dict[k][sigma]['k_inferred'] = []
+
+            print(k, sigma)
+
+            while len(mle_dict[k][sigma]['sigma_inferred_clr']) < n_iter:
+            
+                focal_x = gamma.rvs(numpy.divide(2,sigma)-1, scale=sigma*k/2, size=n_samples)
+
+                # no relative abundances >= 1
+                if sum(focal_x>=1) > 0:
+                    continue
+
+                nonfocal_x = 1 - focal_x
+
+                rel_s_by_s = numpy.column_stack([focal_x, nonfocal_x]).T
+                
+                read_counts_multinomial_all = []
+                for sad_idx, sad in enumerate(rel_s_by_s.T):
+                    read_counts_multinomial_all.append(numpy.random.multinomial(n_reads[sad_idx], sad))
+
+                read_counts_multinomial_all = numpy.asarray(read_counts_multinomial_all)
+
+                # no absences
+                if sum(read_counts_multinomial_all[:,0] == 0) > 0:
+                    continue
+
+                n_reads_gmean = gmean(read_counts_multinomial_all, axis=0)
+
+                clr_s_by_s = numpy.log(read_counts_multinomial_all/n_reads_gmean)
+                rel_s_by_s = (read_counts_multinomial_all.T/n_reads).T
+
+
+                focal_clr = clr_s_by_s[0,:]
+                focal_rel = rel_s_by_s[0,:]
+
+                sigma_clr = mle_sigma(numpy.exp(focal_clr))
+                sigma_rel = mle_sigma(focal_rel)
+
+                mle_dict[k][sigma]['sigma_inferred_clr'].append(sigma_clr)
+                mle_dict[k][sigma]['sigma_inferred_rel'].append(sigma_rel)
+                #mle_dict[k][sigma]['k_inferred'].append(k_estiamte)
+
+                print(k, sigma, numpy.absolute(sigma_clr - sigma)/sigma , numpy.absolute(sigma_rel - sigma)/sigma )
+
+                # add inference from relative abundance......
+
+    
+    with open(compare_clr_to_true_abundance_dict_path, 'wb') as outfile:
+        pickle.dump(mle_dict, outfile, protocol=pickle.HIGHEST_PROTOCOL)
+
+
+
+
+def plot_compare_clr_to_true_abundance():
+
+    mle_dict = pickle.load(open(compare_clr_to_true_abundance_dict_path, "rb"))
+    
+    k_all = list(mle_dict.keys())[:-1]
+    k_all.sort()
+
+    sigma_all = list(mle_dict[k_all[0]].keys())
+    sigma_all.sort()
+
+    sigma_all = numpy.asarray(sigma_all)
+
+    rel_error_rel_all = []
+    rel_error_clr_all = []
+
+    for k in k_all:
+
+        for sigma in sigma_all:
+
+            sigma_inferred_rel = numpy.asarray(mle_dict[k][sigma]['sigma_inferred_rel'])
+            sigma_inferred_clr = numpy.asarray(mle_dict[k][sigma]['sigma_inferred_clr'])
+
+            rel_error_rel_all.append(numpy.absolute(numpy.mean(sigma_inferred_rel - sigma))/sigma)
+            rel_error_clr_all.append(numpy.absolute(numpy.mean(sigma_inferred_clr - sigma))/sigma)
+
+    
+    rel_error_rel_all = numpy.asarray(rel_error_rel_all)
+    rel_error_clr_all = numpy.asarray(rel_error_clr_all)
+
+    array_merged = numpy.concatenate([rel_error_rel_all, rel_error_clr_all])
+    min_, max_ = min(array_merged)*0.5, max(array_merged)*1.1
+
+    
+    fig = plt.figure(figsize = (4, 4))
+    fig.subplots_adjust(bottom= 0.15)
+    ax = plt.subplot2grid((1, 1), (0, 0), colspan=1)
+
+    ax.scatter(rel_error_rel_all, rel_error_clr_all, alpha=0.9, c='dodgerblue', s=20, zorder=2)
+
+    ax.plot([min_, max_], [min_, max_], c='k', lw=2, ls=':', zorder=1)
+
+    ax.set_xscale('log', basex=10)
+    ax.set_yscale('log', basey=10)
+
+    ax.set_xlabel("Mean relative error of " + r'$\sigma$' + ' inference, rel.', fontsize=10)
+    ax.set_ylabel("Mean relative error of " + r'$\sigma$' + ' inference, CLR', fontsize=10)
+
+    ax.set_xlim([min_,max_])
+    ax.set_ylim([min_,max_])
+
+
+    fig.subplots_adjust(hspace=0.35,wspace=0.4)
+    fig_name = "%scompare_clr_to_true_abundance.png" % config.analysis_directory
+    fig.savefig(fig_name, format='png', bbox_inches = "tight", pad_inches = 0.4, dpi = 600)
+    plt.close()
+
+
+
+
+def make_compare_clr_to_true_abundance_oscillating_dict(n_iter=10):
+
+    log_K_0 = -3
+    amp = 1.5
+    freq = 0.018
+    phase = 1.8
+
+    n_reads = numpy.asarray([int(1e6)]*len(days))
+
+    # phase rangeing from yearily to daily oscillations..
+    freq_range = numpy.linspace(2*numpy.pi/365, 2*numpy.pi, num=10)
+    amp_range = numpy.linspace(0, 2, num=10)
+    sigma_all = numpy.logspace(-2, numpy.log10(1), base=10, num=10)
+
+    mle_dict = {}
+
+    for freq in freq_range:
+
+        mle_dict[freq] = {}
+
+        for amp in amp_range:
+
+            mle_dict[freq][amp] = {}
+
+            for sigma in sigma_all:
+
+                print(freq, amp, sigma)
+
+                mle_dict[freq][amp][sigma] = {}
+                mle_dict[freq][amp][sigma]['sigma_inferred_rel'] = []
+                mle_dict[freq][amp][sigma]['sigma_inferred_clr'] = []
+
+                K_t = numpy.exp((numpy.sin(numpy.outer(days, freq) + phase) * amp) + log_K_0)
+
+                while len(mle_dict[freq][amp][sigma]['sigma_inferred_clr']) < n_iter:
+
+                    focal_x = numpy.asarray([gamma.rvs(numpy.divide(2,sigma)-1, scale=sigma*K_t[idx]/2, size=1)[0] for idx in range(len(days))])
+
+                    # no relative abundances >= 1
+                    if sum(focal_x>=1) > 0:
+                        continue
+
+                    nonfocal_x = 1 - focal_x
+
+                    rel_s_by_s = numpy.column_stack([focal_x, nonfocal_x]).T
+                    
+                    read_counts_multinomial_all = []
+                    for sad_idx, sad in enumerate(rel_s_by_s.T):
+                        read_counts_multinomial_all.append(numpy.random.multinomial(n_reads[sad_idx], sad))
+
+                    read_counts_multinomial_all = numpy.asarray(read_counts_multinomial_all)
+
+                    # no absences
+                    if sum(read_counts_multinomial_all[:,0] == 0) > 0:
+                        continue
+
+                    n_reads_gmean = gmean(read_counts_multinomial_all, axis=0)
+
+                    clr_s_by_s = numpy.log(read_counts_multinomial_all/n_reads_gmean)
+                    rel_s_by_s = (read_counts_multinomial_all.T/n_reads).T
+
+                    focal_clr = clr_s_by_s[0,:]
+                    focal_rel = rel_s_by_s[0,:]
+
+                    sigma_clr = mle_sigma(numpy.exp(focal_clr))
+                    sigma_rel = mle_sigma(focal_rel)
+
+                    mle_dict[freq][amp][sigma]['sigma_inferred_rel'].append(sigma_rel)
+                    mle_dict[freq][amp][sigma]['sigma_inferred_clr'].append(sigma_clr)
+                    
+
+    with open(compare_clr_to_true_abundance_oscillating_dict_path, 'wb') as outfile:
+        pickle.dump(mle_dict, outfile, protocol=pickle.HIGHEST_PROTOCOL)
+
+
+
+
+
+def plot_compare_clr_to_true_abundance_oscillating():
+
+    mle_dict = pickle.load(open(compare_clr_to_true_abundance_oscillating_dict_path, "rb"))
+
+    freq_all = list(mle_dict.keys())[:-1]
+    freq_all.sort()
+
+    amp_all = list(mle_dict[freq_all[0]].keys())
+    amp_all.sort()
+
+    simga_all = list(mle_dict[freq_all[0]][amp_all[0]].keys())
+    simga_all.sort()
+
+    fig = plt.figure(figsize = (20, 20))
+    fig.subplots_adjust(bottom= 0.15)
+
+    for freq_idx, freq in enumerate(freq_all):
+
+        for amp_idx, amp in enumerate(amp_all):
+
+            rel_error_rel_all = [numpy.mean(numpy.absolute(numpy.asarray(mle_dict[freq][amp][sigma]['sigma_inferred_rel']) - sigma)/sigma) for sigma in simga_all]
+            rel_error_clr_all = [numpy.mean(numpy.absolute(numpy.asarray(mle_dict[freq][amp][sigma]['sigma_inferred_clr']) - sigma)/sigma) for sigma in simga_all]
+
+            ax = plt.subplot2grid((len(freq_all), len(amp_all)), (freq_idx, amp_idx), colspan=1)
+
+            ax.plot(simga_all, rel_error_rel_all, c='#87CEEB', lw=2, label='Rel. abundance')
+            ax.plot(simga_all, rel_error_clr_all, c='#FF6347', lw=2, label='CLR abundance')
+
+            #ax.set_title('Freq. = %.3f, Amp. = %.3f' % (freq, amp), fontsize=12)
+            ax.set_xscale('log', basex=10)
+            
+
+            ax.axhline(y=0, ls=':', lw=2, c='k')
+
+            ax.xaxis.set_tick_params(labelsize=6)
+            ax.yaxis.set_tick_params(labelsize=6)
+
+            if freq_idx + amp_idx == 0:
+                ax.legend(loc='upper left', fontsize=8)
+
+            if freq_idx == 0:
+                ax.set_title('Amp. = %.3f' % amp, fontsize=10)
+
+            if freq_idx == len(freq_all) - 1:
+                ax.set_xlabel("True " + r'$\sigma$', fontsize=8)                           
+
+            if amp_idx == 0:
+                ax.set_ylabel("Mean rel. error of inferred " + r'$\sigma$', fontsize=6) 
+                ax.text(-0.5, 0.5, 'Freq. = %.3f' % freq, fontsize=10, ha='center', va='center', rotation=90, transform=ax.transAxes)
+
+
+
+            #if amp_idx == 0:
+            #    y_label = 'Freq. = %.3f' % amp
+            #    y_label = y_label + "\nMean rel. error of inferred " + r'$\sigma$'
+
+            #else:
+            #    y_label = "Mean rel. error of inferred " + r'$\sigma$'
+
+            
+
+
+            #ax.text(0.24, 0.8, r'$\rho^{2} = $' + str(round(rho**2, 3)), fontsize=15, ha='center', va='center', transform=ax.transAxes)
+
+
+
+    fig.subplots_adjust(hspace=0.35,wspace=0.4)
+    fig_name = "%scompare_clr_to_true_abundance_oscillating.png" % config.analysis_directory
+    fig.savefig(fig_name, format='png', bbox_inches = "tight", pad_inches = 0.4, dpi = 600)
+    plt.close()
+
+
+
+
+def data_collapse_simulation(mu, s, S, N, dist, gm, n_sites, n_iter=1, rhogamma=0, n_otus_to_fit=30):
+
+    param_dict = {}
+    #param_dict['true_abundance'] = []
+    param_dict['clr'] = []
+
+    for p in sine_parameter_utils.param_no_method_all:
+        param_dict['%s_mle' % p] = []
+
+
+    #for gm in gm_all:
+    #    param_dict['clr'][gm] = {}
+
+    if type(N) == int:
+        N = numpy.asarray([N]*n_sites)
+
+    # carrying capacity can be interpreted 
+    # the logarithm of carrying capacities follow a sine wave
+    K = numpy.sort(numpy.exp(numpy.random.normal(mu, s, S)) )
+
+    # sort so that carrying capacities are increasing
+    sys.stderr.write("Running simulations...\n")
+    #for n in range(n_iter):
+    #while len(param_dict['clr'][gm]) < n_iter:
+
+    #    skip_iter = False
+
+        # we want all iterations to have the same sample of the sigma distribution
+        # chack for all gm and all sine parameter combinations whether you get AFDs
+        # where rank one and rank two have no zeros
+    #    afd_iter_dict = {}
+        # fix carrying capacity
+    #    for gm in gm_all:
+
+    #        afd_iter_dict[gm] = {}
+
+    sigmarnd = []  #Exponentially distributed sigma, common for the two communities
+    if dist == 'exp':
+        for k in range(S):
+            tr = 100
+            while tr > 1.95: # Values too close to 2 give numerical problems when extracting from the Gamma distribution
+                tr = numpy.sqrt(numpy.random.exponential(gm))
+            sigmarnd.append(tr)
+
+        sigmarnd = numpy.asarray(sigmarnd)
+        # sigma defined on range 0 < sigma < 2
+
+    if dist == 'unif':
+        sigmarnd = numpy.random.uniform(0, 1.95, size=S)
+
+    if dist == 'constant':
+        sigmarnd = numpy.repeat(gm, S)
+
+
+    abundances_all, rel_abundances_all, read_counts_multinomial_all, read_counts_multinomial_all_nonzero, non_zero_idx = generate_community_from_sigma_k(S, K, sigmarnd, n_sites, N)
+
+    # relative abundance, all species present are used to calculate relative abundance
+    rel_read_counts_multinomial_all_nonzero = read_counts_multinomial_all_nonzero/numpy.sum(read_counts_multinomial_all_nonzero, axis=0)
+
+    
+    clr_s_by_s, occupancy_idx = utils.clr_transform_sim(read_counts_multinomial_all_nonzero, min_occupancy=1)
+    # get indiceces of must abundance species
+    argsort_mean_rel_abund_idx = numpy.argsort(numpy.mean(rel_read_counts_multinomial_all_nonzero[occupancy_idx,:], axis=1))
+
+    # sort clr_s_by_s by mean relative abundance
+    clr_s_by_s = clr_s_by_s[argsort_mean_rel_abund_idx, :]
+    clr_s_by_s_to_fit = clr_s_by_s[:n_otus_to_fit,:]
+    
+    # loop over OTUs
+    for afd_clr_otu_idx in range(clr_s_by_s_to_fit.shape[0]):
+
+        print(afd_clr_otu_idx)
+
+        afd_clr_otu = clr_s_by_s_to_fit[afd_clr_otu_idx,:]
+        exp_afd_clr_otu = numpy.exp(afd_clr_otu)
+
+        freq_value = 2*numpy.pi/365 # 0.01721420632
+        freq_min = 2*numpy.pi/550 # 0.01142397328 (365+185)
+        freq_max = 2*numpy.pi/180 # 0.034906585 (365-185)
+
+        phase_value = numpy.pi
+        phase_min = 0
+        phase_max = 2*numpy.pi
+
+        amp_value = 1
+        amp_min = 1e-3
+        amp_max = 10
+
+        param_mean_value_exp_afd_clr = numpy.mean(exp_afd_clr_otu)
+        param_min_value_exp_afd_clr = min(exp_afd_clr_otu)
+        param_max_value_exp_afd_clr = max(exp_afd_clr_otu)
+
+        params_afd_exp_clr = create_params(amp=dict(value=amp_value, min=amp_min, max=amp_max),
+                                    freq=dict(value=freq_value, min=freq_min, max=freq_max),
+                                    phase=dict(value=phase_value, min=phase_min, max=phase_max),
+                                    param_mean=dict(value=param_mean_value_exp_afd_clr, min=param_min_value_exp_afd_clr, max=param_max_value_exp_afd_clr))
+
+
+        beta_estimate_clr, sigma_estimate_clr = mle_sigma(exp_afd_clr_otu)
+        result_brute_clr, fitter_clr = sine_parameter_utils.grid_search_mle_sine_wave(days, exp_afd_clr_otu, params_afd_exp_clr, beta_estimate_clr)
+
+
+        best_result_mle_clr = sine_parameter_utils.second_round_optimization_mle(result_brute_clr, fitter_clr, beta_estimate_clr)
+        best_params_mle_clr = best_result_mle_clr.params
+
+        param_dict['clr'].append(afd_clr_otu.tolist())
+
+        for p in sine_parameter_utils.param_no_method_all:
+            param_dict['%s_mle' % p].append(best_params_mle_clr[p].value)
+
+            print(best_params_mle_clr[p].value, param_dict['%s_mle' % p])
+
+    
+
+    sys.stderr.write("Saving parameter dictionary...\n")
+    with open(data_collapse_simulation_path, 'wb') as outfile:
+        pickle.dump(param_dict, outfile, protocol=pickle.HIGHEST_PROTOCOL)
+    sys.stderr.write("Done!\n")
 
 
 
@@ -868,11 +1340,9 @@ if __name__ == "__main__":
     N = 100000
 
     #oscillation_artifact_simulation(0.001, s, S, N, 'exp', [0.1, 0.3, 0.5], n_sites, focal_amp_all=[0, 0.5, 1, 1.5, 2], n_iter=10)
-
-    #plot_oscillation_artifact_simulation()
-
-    #plot_oscillation_artifact_simulation_afd(method='clr')
-    #plot_oscillation_artifact_simulation_afd(method='log_rel')
+    
+    #data_collapse_simulation(0.001, s, S, N, 'exp', 1, n_sites, n_iter=1)
+    plot_oscillation_artifact_simulation()
 
     #test_amp_effect_fix_mean_var(0.0001, s, S, N, 'exp', 0.1, n_sites)
 
@@ -882,3 +1352,11 @@ if __name__ == "__main__":
 
     #s_by_s, s_by_s_sampling = generate_community_oscillating_k(0.0001, s, S, N, 'exp', 1, n_sites, amp_focal=10)
 
+
+    #make_compare_clr_to_true_abundance_dict()
+    #plot_compare_clr_to_true_abundance()
+
+
+    #make_compare_clr_to_true_abundance_oscillating_dict()
+
+    #plot_compare_clr_to_true_abundance_oscillating()

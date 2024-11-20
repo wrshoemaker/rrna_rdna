@@ -5,6 +5,7 @@ import copy
 import numpy
 import utils
 import scipy.stats as stats
+from mpl_toolkits.axes_grid1.inset_locator import inset_axes
 
 
 import matplotlib.pyplot as plt
@@ -41,13 +42,11 @@ def make_null_predict_change_dict(n_perm = 10000, otu_to_remove=None):
 
     sys.stderr.write("Calculating observed correlations...\n")
 
-    # discussion with Jacopo
     # *if* the RNA/DNA ratio is proportional to the growth rate, 
     # then we should be able to predict the change in DNA (proxy of biomass)....
 
     metadata_dict = utils.build_metadata_dict()
     s_by_s, otu_labels, samples = utils.load_count_data()
-    #rel_s_by_s_dna, rel_s_by_s_rna, otu_labels_subset = utils.subset_s_by_s_occupancy(s_by_s, otu_labels, samples, min_occupancy=1)
     clr_s_by_s_dna, clr_s_by_s_rna, otu_labels_subset = utils.clr_transform(s_by_s, otu_labels, samples)
 
     if otu_to_remove != None:
@@ -93,7 +92,6 @@ def make_null_predict_change_dict(n_perm = 10000, otu_to_remove=None):
 
         # slope and intercept
         slope, intercept, r_value, p_value, std_err = stats.linregress(clr_s_by_s_rescaled_ratio_i, diff_clr_s_by_s_rescaled_dna_i)
-        #null_predict_change_dict[otu_i]['rho_obs'] = numpy.corrcoef(s_by_s_rescaled_ratio_rescaled_by_otus_log10_i,ratio_s_by_s_rescaled_dna_log10_i )[0,1]
         null_predict_change_dict[otu_i]['slope_obs'] = slope
         null_predict_change_dict[otu_i]['intercept_obs'] = intercept
         null_predict_change_dict[otu_i]['rho_obs'] = r_value
@@ -131,7 +129,6 @@ def make_null_predict_change_dict(n_perm = 10000, otu_to_remove=None):
             clr_s_by_s_ratio_null_rescaled_i = clr_s_by_s_ratio_null_rescaled[otu_i_idx,:-1]
             diff_clr_s_by_s_dna_null_rescaled_i = diff_clr_s_by_s_dna_null_rescaled[otu_i_idx,:]
 
-            #rho_null = numpy.corrcoef(mean_rescaled_ratio_over_otus_i_null, ratio_s_by_s_rescaled_dna_log10_null_i)[0,1]
             slope_null, intercept_null, r_value_null, p_value_null, std_err_null = stats.linregress(clr_s_by_s_ratio_null_rescaled_i, diff_clr_s_by_s_dna_null_rescaled_i)
             
             #null_predict_change_dict[otu_i]['rho_null_list'].append(rho_null)
@@ -150,7 +147,6 @@ def make_null_predict_change_dict(n_perm = 10000, otu_to_remove=None):
             null_predict_change_dict[otu_i]['%s_z_score' % stat] = z_score_stat
 
 
-    #sys.stderr.write("%d permutations done...\n" % n)
     sys.stderr.write("Saving correlation dictionary...\n")
 
     null_predict_change_dict_path = get_null_predict_change_dict_path(otu_to_remove)    
@@ -178,16 +174,29 @@ def load_null_predict_change_dict_path(otu_to_remove=None):
 
 
 
+def calculate_max_t(null_predict_change_dict, measure):
+
+    otu_list = list(null_predict_change_dict.keys())
+
+    null_otu_by_iter_matrix = numpy.asarray([null_predict_change_dict[i]['%s_null_list'% measure] for i in otu_list])
+
+    max_value = numpy.max(null_otu_by_iter_matrix, axis=0)
+
+    return max_value
+
+
 
 
 def plot_predict_change_scatter(otu_to_remove=None):
 
     null_predict_change_dict = load_null_predict_change_dict_path(otu_to_remove)
+    
 
     fig = plt.figure(figsize = (20, 20))
     fig.subplots_adjust(bottom= 0.15)
 
-    #idx_all = list(range(len(otu_labels_subset)))
+    #slope_null = calculate_max_t(null_predict_change_dict, 'rho')
+
     otus_all = numpy.asarray(list(null_predict_change_dict.keys()))
     chunk_all = [otus_all[x:x+5] for x in range(0, len(otus_all), 5)]
     for chunk_idx, chunk in enumerate(chunk_all):
@@ -203,8 +212,8 @@ def plot_predict_change_scatter(otu_to_remove=None):
 
             ax.scatter(clr_s_by_s_rescaled_ratio_c, diff_clr_s_by_s_rescaled_dna_c, s=8, alpha=1, c='k', zorder=2)
             ax.set_title(c, fontsize=11)
-            ax.set_xlabel("Difference of RNA and DNA CLR", fontsize=10)
-            ax.set_ylabel("Change in DNA CLR b/w timepoints", fontsize=10)
+            ax.set_xlabel("CLR-transformed abund., RNA - DNA", fontsize=10)
+            ax.set_ylabel("Change in DNA b/w timepoints", fontsize=10)
 
             # regression
             #log10_mean_rescaled_ratio_over_otus_c = numpy.log10(mean_rescaled_ratio_over_otus_c)
@@ -214,15 +223,17 @@ def plot_predict_change_scatter(otu_to_remove=None):
             x_range_ =  numpy.linspace(min(clr_s_by_s_rescaled_ratio_c), max(clr_s_by_s_rescaled_ratio_c), 10000)
             y_fit_range = slope*x_range_ + intercept
 
-            if p_value < 0.05:
+            null_slope_c = numpy.asarray(null_predict_change_dict[c]['slope_null_list'])
+            p_value_c = sum(null_slope_c > slope)/len(null_slope_c)
+
+            if p_value_c <= 0.05:
                 ax.plot(x_range_, y_fit_range, ls='--', lw=2.5, c='k')
-                print( r_value**2)
+                #print( r_value**2)
 
-            #ax.set_xscale('log', basex=10)
-            #ax.set_yscale('log', basey=10)
+            ax.text(0.26, 0.87, r'$\beta_{1} = $' + str(round(slope, 3)), fontsize=12, ha='center', va='center', transform=ax.transAxes)
+            ax.text(0.26, 0.78, utils.get_p_value_latex_label_dict(p_value_c), fontsize=12, ha='center', va='center', transform=ax.transAxes)
 
-            #print(slope, r_value**2)
-
+        
     if otu_to_remove == None:
         otu_to_remove_label = ''
     else:
@@ -371,25 +382,19 @@ def plot_predict_change_vs_temp_rho():
 
 
 
+if __name__ == "__main__":
+
+    print("Running...")
+
+    # #make_null_predict_change_dict()
+
+    plot_predict_change_scatter()  
+    #plot_predict_change_null_hist()
 
 
-plot_predict_change_vs_temp_rho()
-
-#make_null_predict_change_dict()
+    #plot_predict_change_vs_temp_rho()
 
 
-# make_null_predict_change_dict()
-#plot_predict_change_scatter()
-#plot_predict_change_null_hist()
-
-#plot_predict_change_null_hist()
-#()
-#make_null_predict_change_dict(otu_to_remove='Otu000001')
-#make_plot()
-
-#plot_predict_change_scatter()
-#plot_predict_change_scatter(otu_to_remove='Otu000001')
+    #make_null_predict_change_dict(otu_to_remove='Otu000001')
 
 
-
-#plot_slope_comparison_no_otu1()

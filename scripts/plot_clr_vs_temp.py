@@ -161,7 +161,6 @@ def plot_time_delay_env_rho():
     fig = plt.figure(figsize = (20, 20))
     fig.subplots_adjust(bottom= 0.15)
 
-
     for chunk_idx, chunk in enumerate(chunk_all):
 
         for c_idx, c in enumerate(chunk):

@@ -14,11 +14,17 @@ from collections import Counter
 
 
 
+sub_plot_labels = ['a','b','c', 'd','e','f', 'g','h','i', 'j','k','l', 'm','n','o', 'p','q','r']
+
+
 # colors_dict = {'0':'#87CEEB', '1': '#FFA500', '2':'#FF6347'}
 
 dna_rna_color_dict = {'RNA': '#FF6347', 'DNA': '#87CEEB', 'ratio':'k'}
 
 color_radius = 2
+
+cmap_data_type_dict = {'DNA': 'Blues', 'RNA': 'Reds'}
+
 
 rescaled_label_dict = {'RNA':'Rescaled RNA, ' + r'$r_{i}(t)$', 'DNA': 'Rescaled DNA, ' + r'$d_{i}(i)$', 'ratio': 'Rescaled RNA:DNA, ' + r'$\phi_{i}(t)$'}
 #rescaled_label_dict = {'RNA':'Rescaled RNA, ' + r'$r_{i}(t)$', 'DNA': 'Rescaled DNA, ' + r'$d_{i}(i)$', 'ratio': 'Rescaled RNA:DNA, ' + r'$\phi_{i}(t)$'}
@@ -46,11 +52,11 @@ env_variable_no_unit_label_dict = {'water_temp': 'Water temperature', 'specific_
 def get_p_value_latex_label_dict(p_value):
 
     if p_value <= 0.05:
-        label = r'$P \leq 0.05$'
+        label = r'$P \, \leq \, 0.05$'
 
 
     else:
-        label = r'$P \nleq 0.05$'
+        label = r'$P \, \nleq \, 0.05$'
 
     return label
 

@@ -60,6 +60,8 @@ fig = plt.figure(figsize = (8.5, 16))
 fig.subplots_adjust(bottom= 0.15)
 
 ax_data = plt.subplot2grid((4, 2), (0, 0))
+ax_data_clr = ax_data.twinx()
+
 #ax_model = plt.subplot2grid((4, 2), (0, 1))
 
 #ax_sim_abund = plt.subplot2grid((4, 2), (1, 0), colspan = 2)
@@ -75,6 +77,21 @@ ax_sim_nonfocal_reads_clr = ax_sim_nonfocal_reads.twinx()
 ax_sim_focal_param = plt.subplot2grid((4, 2), (3, 0), colspan = 1)
 ax_sim_nonfocal_param = plt.subplot2grid((4, 2), (3, 1), colspan = 1)
 
+# row 1
+ax_data.text(-0.13, 1.04, utils.sub_plot_labels[0], fontsize=10, fontweight='bold', ha='center', va='center', transform=ax_data.transAxes)
+ax_data.text(1.4, 1.04, utils.sub_plot_labels[1], fontsize=10, fontweight='bold', ha='center', va='center', transform=ax_data.transAxes)
+
+# row 2
+ax_sim_focal_abund.text(-0.1, 1.04, utils.sub_plot_labels[2], fontsize=10, fontweight='bold', ha='center', va='center', transform=ax_sim_focal_abund.transAxes)
+ax_sim_nonfocal_abund.text(-0.1, 1.04, utils.sub_plot_labels[3], fontsize=10, fontweight='bold', ha='center', va='center', transform=ax_sim_nonfocal_abund.transAxes)
+
+ax_sim_focal_reads.text(-0.1, 1.04, utils.sub_plot_labels[4], fontsize=10, fontweight='bold', ha='center', va='center', transform=ax_sim_focal_reads.transAxes)
+ax_sim_nonfocal_reads.text(-0.1, 1.04, utils.sub_plot_labels[5], fontsize=10, fontweight='bold', ha='center', va='center', transform=ax_sim_nonfocal_reads.transAxes)
+#ax_sim_nonfocal_reads_clr.text(-0.1, 1.04, utils.sub_plot_labels[5], fontsize=10, fontweight='bold', ha='center', va='center', transform=ax_sim_nonfocal_reads_clr.transAxes)
+
+ax_sim_focal_param.text(-0.1, 1.04, utils.sub_plot_labels[6], fontsize=10, fontweight='bold', ha='center', va='center', transform=ax_sim_focal_param.transAxes)
+ax_sim_nonfocal_param.text(-0.1, 1.04, utils.sub_plot_labels[7], fontsize=10, fontweight='bold', ha='center', va='center', transform=ax_sim_nonfocal_param.transAxes)
+
 
 
 
@@ -88,7 +105,6 @@ focal_otu_afd = s_by_s_rna[focal_otu_idx,:]
 focal_otu_afd_rel = focal_otu_afd/n_reads
 focal_otu_afd_clr = numpy.log(focal_otu_afd/stats.gmean(focal_otu_afd))
 
-ax_data_clr = ax_data.twinx()
 ax_data.plot(days, focal_otu_afd_rel, lw=1, alpha=1, color=rel_color, zorder=1)
 ax_data.scatter(days, focal_otu_afd_rel, s=6, alpha=1, color=rel_color, zorder=1)
 ax_data_clr.plot(days, focal_otu_afd_clr, lw=1, alpha=1, color=clr_color, zorder=2)
@@ -99,7 +115,7 @@ ax_data_clr.scatter(days, focal_otu_afd_clr, s=8, alpha=1, color=clr_color, zord
 ax_data.set_ylabel("Relative abundance", fontsize=11, color=rel_color, fontweight='bold')
 ax_data_clr.set_ylabel("CLR-transformed abundance", fontsize=11, color=clr_color, fontweight='bold')
 ax_data.axhline(y=1, lw=2.5, ls=':', label='Max. relative abundance', color=rel_color)
-ax_data.set_title('Observed abundance (OTU 1)', fontsize=12, fontweight='bold')
+ax_data.set_title('Observed RNA abundance of OTU 1', fontsize=12, fontweight='bold')
 ax_data.set_yscale('log', basey=10)
 
 ax_data.legend(loc="lower left", fontsize=8)
@@ -216,12 +232,18 @@ for ax_i in [ax_data, ax_sim_focal_abund, ax_sim_nonfocal_abund, ax_sim_focal_ab
     ax_i.set_xticks(minor_days, minor=True)
     ax_i.set_xticks(major_days, minor=False)
     ax_i.set_xticklabels(major_labels, minor=False, fontsize=7)
-    ax_i.set_xlabel("Time", fontsize=12)
+    ax_i.set_xlabel("Time (days)", fontsize=12)
     ax_i.yaxis.set_tick_params(labelsize=7)
 
 
+ax_data_clr.yaxis.set_tick_params(labelsize=7)
+
 ax_sim_focal_reads_clr.tick_params(labelsize=7)
 ax_sim_nonfocal_reads_clr.tick_params(labelsize=7)
+
+ax_sim_focal_param.tick_params(labelsize=7)
+ax_sim_nonfocal_param.tick_params(labelsize=7)
+
 
 # X*10^0 are minor tick labels in matplotlib
 ax_sim_focal_reads.yaxis.set_minor_formatter(ticker.NullFormatter())
@@ -230,11 +252,11 @@ ax_sim_focal_reads.yaxis.set_minor_formatter(ticker.NullFormatter())
 # true vs. inferred parameters... 
 true_amp = [sine_param_combo[0] for sine_param_combo in sine_param_combo_all]
 
-clr_focal_amp = [numpy.mean(param_dict['clr']['focal'][sigma_to_plot][sine_param_combo]['amp_leastsq']) for sine_param_combo in sine_param_combo_all]
-log_rel_focal_amp = [numpy.mean(param_dict['log_rel']['focal'][sigma_to_plot][sine_param_combo]['amp_leastsq']) for sine_param_combo in sine_param_combo_all]
+clr_focal_amp = [numpy.mean(param_dict['clr']['focal'][sigma_to_plot][sine_param_combo]['amp_mle']) for sine_param_combo in sine_param_combo_all]
+log_rel_focal_amp = [numpy.mean(param_dict['log_rel']['focal'][sigma_to_plot][sine_param_combo]['amp_mle']) for sine_param_combo in sine_param_combo_all]
 
-clr_nonfocal_amp = [numpy.mean(param_dict['clr']['nonfocal'][sigma_to_plot][sine_param_combo]['amp_leastsq']) for sine_param_combo in sine_param_combo_all]
-log_rel_nonfocal_amp = [numpy.mean(param_dict['log_rel']['nonfocal'][sigma_to_plot][sine_param_combo]['amp_leastsq']) for sine_param_combo in sine_param_combo_all]
+clr_nonfocal_amp = [numpy.mean(param_dict['clr']['nonfocal'][sigma_to_plot][sine_param_combo]['amp_mle']) for sine_param_combo in sine_param_combo_all]
+log_rel_nonfocal_amp = [numpy.mean(param_dict['log_rel']['nonfocal'][sigma_to_plot][sine_param_combo]['amp_mle']) for sine_param_combo in sine_param_combo_all]
 
 
 min_amp = min(true_amp) - 0.1
@@ -258,7 +280,7 @@ ax_sim_nonfocal_param.set_yticklabels(true_amp)
 
 
 ax_sim_focal_param.plot([min_amp, max_amp], [min_amp, max_amp], lw=2, ls=':', c='k', zorder=1, label='1:1')
-ax_sim_nonfocal_param.plot([min_amp, max_amp], [min_amp, max_amp], lw=2, ls=':', c='k', zorder=1)
+ax_sim_nonfocal_param.plot([min_amp, max_amp], [min_amp, max_amp], lw=2, ls=':', c='k', zorder=1, label='1:1')
 
 ax_sim_focal_param.plot(true_amp, clr_focal_amp, lw=2.5, alpha=1, color=clr_color, zorder=2)#, zorder=5-sine_param_combo_idx)
 ax_sim_focal_param.scatter(true_amp, clr_focal_amp, s=40, alpha=1, color=clr_color, zorder=3, label='CLR-transformed abund.')#, zorder=5-sine_param_combo_idx)
@@ -273,13 +295,13 @@ ax_sim_nonfocal_param.scatter(true_amp, clr_nonfocal_amp, s=40, alpha=1, color=c
 ax_sim_nonfocal_param.plot(true_amp, log_rel_nonfocal_amp, lw=2.5, alpha=1, color=rel_color)#, zorder=5-sine_param_combo_idx)
 ax_sim_nonfocal_param.scatter(true_amp, log_rel_nonfocal_amp, s=40, alpha=1, color=rel_color, label='Log relative abund.')#, zorder=5-sine_param_combo_idx)
 
-ax_sim_focal_param.set_title('Oscillating OTU + sampling', fontsize=12, fontweight='bold')
-ax_sim_nonfocal_param.set_title('Non-oscillating OTU + sampling', fontsize=12, fontweight='bold')
+#ax_sim_focal_param.set_title('Oscillating OTU + sampling', fontsize=12, fontweight='bold')
+#ax_sim_nonfocal_param.set_title('Non-oscillating OTU + sampling', fontsize=12, fontweight='bold')
 
-ax_sim_focal_param.set_xlabel("True amplitude of oscillating OTU, " + r'$A$', fontsize=12)
+ax_sim_focal_param.set_xlabel("True amplitude of oscillating OTU" , fontsize=12)
 ax_sim_focal_param.set_ylabel("Inferred amplitude of oscillating OTU", fontsize=11.5)
 
-ax_sim_nonfocal_param.set_xlabel("True amplitude of oscillating OTU, " + r'$A$', fontsize=12)
+ax_sim_nonfocal_param.set_xlabel("True amplitude of oscillating OTU", fontsize=12)
 ax_sim_nonfocal_param.set_ylabel("Inferred amplitude of non-oscillating OTU", fontsize=11.5)
 
 ax_sim_focal_reads_clr.set_ylabel("CLR-transformed abundance", fontsize=11, color=clr_color, fontweight='bold')
