@@ -22,6 +22,7 @@ sample_type = numpy.asarray([metadata_dict[s]['sample_type'] for s in samples])
 days = numpy.asarray([metadata_dict[s]['day'] for s in samples[(sample_type=='RNA')]])
 
 
+#print(s_by_s.shape)
 
 
 s = 3
@@ -103,7 +104,11 @@ focal_otu_idx = numpy.where(otu_labels=='Otu000001')[0][0]
 focal_otu_afd = s_by_s_rna[focal_otu_idx,:]
 
 focal_otu_afd_rel = focal_otu_afd/n_reads
-focal_otu_afd_clr = numpy.log(focal_otu_afd/stats.gmean(focal_otu_afd))
+#focal_otu_afd_clr = numpy.log(focal_otu_afd/stats.gmean(focal_otu_afd))
+
+clr_s_by_s_dna, clr_s_by_s_rna, otu_labels_occupancy = utils.clr_transform_subset(s_by_s, otu_labels, samples)
+focal_otu_afd_clr = clr_s_by_s_dna[0,:]
+
 
 ax_data.plot(days, focal_otu_afd_rel, lw=1, alpha=1, color=rel_color, zorder=1)
 ax_data.scatter(days, focal_otu_afd_rel, s=6, alpha=1, color=rel_color, zorder=1)

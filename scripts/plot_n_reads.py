@@ -34,8 +34,9 @@ sem_rna = numpy.std(n_reads_rna)/numpy.sqrt(len(n_reads_rna))
 print("DNA mean #reads = %.2f +/- %.2f" % (mean_dna, sem_dna) )
 print("RNA mean #reads = %.2f +/- %.2f" % (mean_rna, sem_rna) )
 
-label_dna = 'DNA, ' + r'$\bar{N}_{\mathrm{DNA}} = $' + str(int(mean_dna)) + r'$\pm$' + str(int(sem_dna)) + ' (Mean ' + r'$\pm$' + ' SEM)'
-label_rna = 'RNA, ' + r'$\bar{N}_{\mathrm{RNA}} = $' + str(int(mean_rna)) + r'$\pm$' + str(int(sem_rna)) + ' (Mean ' + r'$\pm$' + ' SEM)'
+label_dna = 'DNA, ' + r'$\bar{N}_{\mathrm{DNA}} = $' + "{:,}".format(int(mean_dna)) + r'$\pm$' + str(int(sem_dna)) + ' (Mean ' + r'$\pm$' + ' SEM)'
+label_rna = 'RNA, ' + r'$\bar{N}_{\mathrm{RNA}} = $' +"{:,}".format(int(mean_rna)) + r'$\pm$' + str(int(sem_rna)) + ' (Mean ' + r'$\pm$' + ' SEM)'
+
 
 
 
@@ -64,6 +65,8 @@ ax.set_xticks(major_days, minor=False)
 ax.set_xticklabels(major_labels, minor=False, fontsize=7)
 ax.yaxis.set_tick_params(labelsize=7)
 
+
+
         
 ax.scatter(days, n_reads_dna, s=10, alpha=1, c=utils.dna_rna_color_dict['DNA'], label=label_dna)
 ax.plot(days, n_reads_dna, ls='-', lw=1, c=utils.dna_rna_color_dict['DNA'])
@@ -72,10 +75,18 @@ ax.scatter(days, n_reads_rna, s=10, alpha=1, c=utils.dna_rna_color_dict['RNA'], 
 ax.plot(days, n_reads_rna, ls='-', lw=1, c=utils.dna_rna_color_dict['RNA'])
 
 ax.set_xlabel("Time (days)", fontsize=10)
-ax.set_ylabel("Number of reads, " + r'$N$', fontsize=10)
+ax.set_ylabel("Number of reads, " + r'$N(t)$', fontsize=10)
 
 ax.legend(loc='upper left', fontsize=10)
 
+
+yticks =  ax.get_yticks()
+ytick_labels = ["{:,}".format(int(y)) for y in yticks]
+
+print(yticks, ytick_labels)
+
+ax.set_yticks(yticks[1:], minor=False)
+ax.set_yticklabels(ytick_labels[1:], minor=False, fontsize=7)
 
 #ax.yaxis.set_major_formatter(OOMFormatter(5, "%1.1f"))
 #axe.ticklabel_format(axis='y', style='sci', scilimits=(-4,-4))

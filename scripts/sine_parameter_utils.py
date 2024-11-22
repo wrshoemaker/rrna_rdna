@@ -27,7 +27,6 @@ param_env_dict_path = config.data_directory + 'param_env_dict.pickle'
 #param_leastsq_all = ['amp_leastsq', 'freq_leastsq', 'phase_leastsq']
 param_no_method_all = ['amp', 'freq', 'phase', 'param_mean']
 
-env_variable_all = ['water_temp', 'specific_conductivity', 'dissolved_oxygen', 'salinity', 'secchi_depth', 'ph', 'air_temperature']
 log10_status_label_dict = {True:'log10_', False:''}
 clr_status_label_dict = {True:'clr_', False: ''}
 param_label_dict = {'amp': 'Amplitude', 'freq': 'Oscillation timescale (days)', 'phase': 'Phase'}
@@ -253,13 +252,13 @@ def make_param_env_dict():
         param_dict['%s_leastsq' % p] = []
         
 
-    param_dict['env_variables_labels'] = env_variable_all
+    param_dict['env_variables_labels'] = utils.env_variable_all
 
     sys.stderr.write("Fitting sine function to environmental variables...\n")
     sys.stderr.write(", ".join(["Env. variable", "Amplititude", "Frequency", "Phase", "Mean"]) + "\n")
 
     # environmental analysis....
-    for env_variable_idx, env_variable in enumerate(env_variable_all):
+    for env_variable_idx, env_variable in enumerate(utils.env_variable_all):
         
         env_variable_array = numpy.asarray([metadata_dict[s][env_variable] for s in samples[(sample_type=='RNA')]])
         # remove nans
@@ -268,7 +267,6 @@ def make_param_env_dict():
         days_clean = days[env_to_keep_idx]
         
         #upper_bound = None
-
         freq_value = 2*numpy.pi/365 # 0.01721420632
         freq_min = 2*numpy.pi/550 # 0.01142397328 (365+185)
         freq_max = 2*numpy.pi/180 # 0.034906585 (365-185)
@@ -283,7 +281,7 @@ def make_param_env_dict():
 
         amp_value = 1
         amp_min = 0.01
-        amp_max = 10
+        amp_max = 14
 
         params = create_params(amp=dict(value=amp_value, min=amp_min, max=amp_max),
                                 freq=dict(value=freq_value, min=freq_min, max=freq_max),
@@ -536,7 +534,7 @@ def make_param_otu_dict(log10_status=True, otu_to_remove=None, min_occupancy=1, 
 def make_param_mle_otu_dict(min_occupancy=1):
 
     s_by_s, otu_labels, samples = utils.load_count_data()
-    rel_s_by_s_dna, rel_s_by_s_rna, otu_labels_subset = utils.clr_transform(s_by_s, otu_labels, samples, min_occupancy=1)
+    rel_s_by_s_dna, rel_s_by_s_rna, otu_labels_subset = utils.clr_transform_subset(s_by_s, otu_labels, samples, min_occupancy=1)
 
     param_dict = {}
     param_dict['data'] = {}
@@ -632,6 +630,9 @@ def make_param_mle_otu_dict(min_occupancy=1):
                 param_dict['%s_mle' % p][data_type].append(best_params_mle[p].value)
                 #param_dict['%s_mle_lower_ci' % p][data_type].append(ci[p][0][1])
                 #param_dict['%s_mle_upper_ci' % p][data_type].append(ci[p][2][1])
+
+                if p == 'amp':
+                    print(best_params_mle[p].value)
 
 
             param_dict['data']['days'][data_type].append(days_afd.tolist())
@@ -1388,7 +1389,7 @@ def plot_time_vs_abundance_clr(data_type='RNA', otu_to_remove=None, method='mle'
         s_by_s = s_by_s[otu_to_keep_idx,:]
         otu_labels = otu_labels[otu_to_keep_idx]
 
-    clr_s_by_s_dna, clr_s_by_s_rna, otu_labels_subset = utils.clr_transform(s_by_s, otu_labels, samples)
+    clr_s_by_s_dna, clr_s_by_s_rna, occupancy_idx, otu_labels_subset = utils.clr_transform(s_by_s, otu_labels, samples)
 
     # get days
     metadata_dict = utils.build_metadata_dict()
@@ -1416,6 +1417,8 @@ def plot_time_vs_abundance_clr(data_type='RNA', otu_to_remove=None, method='mle'
 
             days_c = days[c]
             afd_c = afd[c]
+            #afd_c = clr_s_by_s_rna_subset[c,:]
+
 
             amp = param_dict['amp_%s' % method][data_type][c]
             freq = param_dict['freq_%s' % method][data_type][c]
@@ -1427,15 +1430,12 @@ def plot_time_vs_abundance_clr(data_type='RNA', otu_to_remove=None, method='mle'
             days_range = numpy.linspace(min(days_c), max(days_c), 1000)
             model_prediction = amp*numpy.sin(freq*days_range+phase) + numpy.log(param_mean)
 
-            #ax.scatter(days, afd, s=8, alpha=1, c=utils.dna_rna_color_dict[data_type])
-            #ax.plot(days_range, model_prediction, ls='-', lw=1, c=utils.dna_rna_color_dict[data_type], zorder=1)
             ax.plot(days_range, model_prediction, ls='-', lw=3, c=utils.dna_rna_color_dict[data_type], zorder=1)
 
             ax.scatter(days_c, afd_c, s=8, alpha=1, c=utils.dna_rna_color_dict[data_type], zorder=2)
             #ax.axhline(y=0, ls=':', lw=2, zorder=0, c='k')#')
-            #ax.plot(days_range, model_prediction, ls='-', lw=1, c=utils.dna_rna_color_dict[data_type])
             ax.set_xlabel("Time (days)", fontsize=10)
-            ax.set_ylabel("CLR transformed abundance, " + utils.rescaled_label_clr_dict[data_type], fontsize=10)
+            ax.set_ylabel("CLR-transformed abundance, " + utils.rescaled_label_clr_dict[data_type], fontsize=10)
             ax.set_title(otu_labels_subset[c], fontsize=11)
 
             #minor_days, major_days, major_labels
@@ -1474,7 +1474,9 @@ def plot_clr_abundance_with_vs_without_otu1(data_type='RNA'):
     s_by_s_no_otu1 = s_by_s[otu_to_keep_idx]
     otu_labels_no_otu1 = otu_labels[otu_to_keep_idx]
 
-    clr_s_by_s_dna, clr_s_by_s_rna, otu_labels_subset = utils.clr_transform(s_by_s, otu_labels, samples)
+    clr_s_by_s_dna, clr_s_by_s_rna,  occupancy_idx, otu_labels_subset = utils.clr_transform(s_by_s, otu_labels, samples)
+    clr_s_by_s_dna_subset = clr_s_by_s_dna[occupancy_idx,:]
+    clr_s_by_s_rna_subset = clr_s_by_s_rna[occupancy_idx,:]
     clr_s_by_s_no_otu1_dna, clr_s_by_s_no_otu1_rna, otu_labels_no_otu1_subset = utils.clr_transform(s_by_s_no_otu1, otu_labels_no_otu1, samples)
 
      # get days
@@ -1641,17 +1643,17 @@ def plot_time_vs_env():
 
     param_env_dict = load_param_env_dict()
 
-    env_variable_all_nested = [['water_temp', 'specific_conductivity'], ['dissolved_oxygen', 'salinity'], ['secchi_depth', 'ph']]
+    env_variable_all_nested = [['water_temp', 'specific_conductivity', 'dissolved_oxygen'], ['salinity', 'secchi_depth', 'ph'], ['total_nitrogen', 'total_phosphorus', 'doc']]
     
     
-    fig = plt.figure(figsize = (8, 8))
+    fig = plt.figure(figsize = (9, 9))
     fig.subplots_adjust(bottom= 0.15)
 
     for nested_i_idx, nested_i in enumerate(env_variable_all_nested):
 
         for env_variable_j_idx, env_variable_j in enumerate(nested_i):
 
-            ax = plt.subplot2grid((3, 2), (nested_i_idx, env_variable_j_idx), colspan=1)
+            ax = plt.subplot2grid((3, 3), (nested_i_idx, env_variable_j_idx), colspan=1)
 
             env_variable_array = numpy.asarray([metadata_dict[s][env_variable_j] for s in samples[(sample_type=='RNA')]])
             # remove nans
@@ -1685,8 +1687,6 @@ def plot_time_vs_env():
                 ax.legend(loc='upper right', fontsize=7)
 
 
-            print(2*numpy.pi/param_env_dict['freq_leastsq'][env_variable_dict_idx])
-
 
     fig.subplots_adjust(hspace=0.35, wspace=0.40)
     fig_name = "%stime_vs_env.png" % (config.analysis_directory)
@@ -1704,8 +1704,8 @@ if __name__ == "__main__":
     #make_param_mle_otu_dict()
     #make_param_env_dict()
     
+    plot_time_vs_abundance_clr(data_type='RNA')
     plot_time_vs_abundance_clr(data_type='DNA')
-    #plot_time_vs_abundance_clr(data_type='RNA')
 
     # plot includes sine difference
     #plot_time_vs_clr_ratio()

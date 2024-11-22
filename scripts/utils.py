@@ -39,14 +39,16 @@ env_variables_all = ['water_temp', 'specific_conductivity', 'dissolved_oxygen', 
 taxonomic_ranks = ['domain', 'phylum', 'class', 'order', 'family', 'genus', 'species']
 
 
+env_variable_all = ['water_temp', 'specific_conductivity', 'dissolved_oxygen', 'salinity', 'secchi_depth', 'ph', 'air_temperature', 'total_nitrogen', 'total_phosphorus', 'doc']
+
 env_variable_label_dict = {'water_temp': 'Water temperature (°C)', 'specific_conductivity': 'Specific conductivity (mS/cm)', 
                             'dissolved_oxygen': 'Dissolved oxygen (mg/L)', 'salinity': 'Salinity (PSS)',
-                            'secchi_depth': 'Secchi depth (m)', 'ph':'pH', 'air_temperature': 'Air temperature (°C)'}
+                            'secchi_depth': 'Secchi depth (m)', 'ph':'pH', 'air_temperature': 'Air temperature (°C)', 'total_nitrogen':'Total nitrogen (mg/L)', 'total_phosphorus':'Total phosphorus (' + r'$\mu$' + 'g/L)', 'doc': 'Dissolved organic carbon (mg/L)'}
 
 
 env_variable_no_unit_label_dict = {'water_temp': 'Water temperature', 'specific_conductivity': 'Specific conductivity', 
                             'dissolved_oxygen': 'Dissolved oxygen', 'salinity': 'Salinity',
-                            'secchi_depth': 'Secchi depth', 'ph':'pH', 'air_temperature': 'Air temperature'}
+                            'secchi_depth': 'Secchi depth', 'ph':'pH', 'air_temperature': 'Air temperature',  'total_nitrogen':'Total nitrogen', 'total_phosphorus':'Total phosphorus', 'doc': 'Dissolved organic carbon'}
 
 
 def get_p_value_latex_label_dict(p_value):
@@ -193,6 +195,76 @@ def build_metadata_dict():
 
     
     file_environment.close()
+
+    # get nitrogen, phosphorous, and DOC
+    file_environment_2 = open('%sul-seedbank.env.txt' % config.data_directory, 'r')
+    file_environment_2_header = file_environment_2.readline()
+    file_environment_2_header = file_environment_2_header.strip().split('\t')
+    
+    for line in file_environment_2:
+
+        line = line.strip().split('\t')
+        sample = line[0]
+
+        if len(sample) == 1:
+            sample = '00' + sample
+
+        elif len(sample) == 2:
+            sample = '0' + sample
+
+        else:
+            sample = sample
+
+
+        doc = line[-3]
+        total_nitrogen = line[-4]
+        total_phosphorus = line[-5]
+
+        if (len(doc) > 0) and ('*' not in doc):
+            doc = float(doc)
+        else:
+            doc = numpy.nan
+
+        if (len(total_nitrogen) > 0) and ('*' not in total_nitrogen):
+            total_nitrogen = float(total_nitrogen)
+        else:
+            total_nitrogen = numpy.nan
+
+        if (len(total_phosphorus) > 0) and ('*' not in total_phosphorus):
+            total_phosphorus = float(total_phosphorus)
+        else:
+            total_phosphorus = numpy.nan
+
+
+        # ignore low numbers of outliers
+
+        if total_nitrogen > 3:
+            total_nitrogen = numpy.nan
+
+        if total_phosphorus > 140:
+            total_phosphorus = numpy.nan
+
+        if (doc > 8) or (doc < 1):
+            doc = numpy.nan
+
+
+        rna_sample = 'ULc' + sample
+        dna_sample = 'ULD' + sample
+
+        if dna_sample not in metadata_dict:
+            continue
+
+        for sample_i in [rna_sample, dna_sample]:
+            metadata_dict[sample_i]['doc'] = doc
+            metadata_dict[sample_i]['total_nitrogen'] = total_nitrogen
+            metadata_dict[sample_i]['total_phosphorus'] = total_phosphorus
+
+
+        
+
+
+    file_environment_2.close()
+
 
     return metadata_dict
 
@@ -712,7 +784,7 @@ def rescale_s_by_s(s_by_s):
 
 
 
-def clr_transform(s_by_s, otu_labels, samples, min_occupancy=1):
+def clr_transform_subset(s_by_s, otu_labels, samples, min_occupancy=1):
 
     # subset_n_reads=False
 
@@ -750,8 +822,49 @@ def clr_transform(s_by_s, otu_labels, samples, min_occupancy=1):
 
 
 
+def clr_transform(s_by_s, otu_labels, samples, min_occupancy = 1, pseudocount = 1):
 
-def clr_transform_sim(s_by_s, min_occupancy=1):
+    # subset_n_reads=False
+
+    # requires rel_s_by_s ASVs to all have occupancy = 1
+    metadata_dict = build_metadata_dict()
+
+    sample_type = numpy.asarray([metadata_dict[s]['sample_type'] for s in samples])
+
+    sample_type_rna_idx = (sample_type=='RNA')
+    sample_type_dna_idx = (sample_type=='DNA')
+
+    s_by_s_rna = s_by_s[:,sample_type_rna_idx]
+    s_by_s_dna = s_by_s[:,sample_type_dna_idx]
+
+    occupancy_rna = numpy.sum((s_by_s_rna>0), axis=1)/sum(sample_type_rna_idx)
+    occupancy_dna = numpy.sum((s_by_s_dna>0), axis=1)/sum(sample_type_dna_idx)
+
+    occupancy_idx = (occupancy_rna>=min_occupancy) & (occupancy_dna>=min_occupancy)
+
+    otu_labels_occupancy = otu_labels[occupancy_idx]
+
+    s_by_s_rna_pseud = s_by_s_rna + pseudocount
+    s_by_s_dna_pseud = s_by_s_dna + pseudocount
+    
+    s_by_s_rna_occupancy = s_by_s_rna[occupancy_idx,:]
+    s_by_s_dna_occupancy = s_by_s_dna[occupancy_idx,:]
+
+    # geometric mean *over OTUs* per-sample
+    # length of vector is # of samples
+    n_reads_rna_gmean = gmean(s_by_s_rna_pseud, axis=0)
+    n_reads_dna_gmean = gmean(s_by_s_dna_pseud, axis=0)
+
+    clr_s_by_s_rna = (numpy.log(s_by_s_rna_pseud) - numpy.log(n_reads_rna_gmean))
+    clr_s_by_s_dna = (numpy.log(s_by_s_dna_pseud) - numpy.log(n_reads_dna_gmean))
+
+    # return 
+
+    return clr_s_by_s_dna, clr_s_by_s_rna, occupancy_idx, otu_labels_occupancy
+
+
+
+def clr_transform_sim_subset(s_by_s, min_occupancy=1):
 
     # requires rel_s_by_s ASVs to all have occupancy = 1
     occupancy = numpy.sum((s_by_s>0), axis=1)/s_by_s.shape[1]
@@ -760,18 +873,35 @@ def clr_transform_sim(s_by_s, min_occupancy=1):
     
     s_by_s_occupancy = s_by_s[occupancy_idx,:]
 
-    #n_reads_rna = numpy.sum(s_by_s_rna, axis=0)
-    #n_reads_dna = numpy.sum(s_by_s_dna, axis=0)
-
     # geometric mean *across* species calculated for each sample
     # len(n_reads_gmean) = # samples
     n_reads_gmean = gmean(s_by_s_occupancy, axis=0)
 
     clr_s_by_s = numpy.log(s_by_s_occupancy/n_reads_gmean)
 
+    #print(s_by_s.shape, clr_s_by_s.shape, len(n_reads_gmean))
+
     return clr_s_by_s, occupancy_idx
 
 
+
+def clr_transform_sim(s_by_s, pseudocount=1, min_occupancy=1):
+
+    # requires rel_s_by_s ASVs to all have occupancy = 1
+    occupancy = numpy.sum((s_by_s>0), axis=1)/s_by_s.shape[1]
+
+    occupancy_idx = (occupancy>=min_occupancy) #& (occupancy>=min_occupancy)
+    
+    s_by_s_pseud = s_by_s + pseudocount
+    
+    # geometric mean *over OTUs* per-sample
+    n_reads_gmean = gmean(s_by_s_pseud, axis=0)
+
+    clr_s_by_s = (numpy.log(s_by_s_pseud) - numpy.log(n_reads_gmean))
+
+    # geometric mean *across* species calculated for each sample
+
+    return clr_s_by_s, occupancy_idx
 
 
 

@@ -26,19 +26,13 @@ min_n_obs = 10
 #label_dict = {'DNA':  r'$R_{\tilde{X}_{i}}(\Delta t)$'}
 
 
-def make_autocorrelation_dict(clr_status=True):
+def make_autocorrelation_dict():
 
     metadata_dict = utils.build_metadata_dict()
 
     s_by_s, otu_labels, samples = utils.load_count_data()
-    #s_by_s_dna, s_by_s_rna, otu_labels_subset = utils.subset_s_by_s_occupancy(s_by_s, otu_labels, samples, min_occupancy=1)
 
-    if clr_status == True:
-        param_dict = sine_parameter_utils.load_param_otu_dict(log10_status=False, clr_status=True, otu_to_remove=None)
-
-    else:
-        param_dict = sine_parameter_utils.load_param_otu_dict(log10_status=True, clr_status=False, otu_to_remove=None)
-
+    param_dict = pickle.load(open(sine_parameter_utils.param_otu_mle_dict_path, "rb"))
 
     param_env_dict = sine_parameter_utils.load_param_env_dict()
     # get days
@@ -73,10 +67,10 @@ def make_autocorrelation_dict(clr_status=True):
 
         for data_type in ['RNA', 'DNA']:
 
-            freq_leastsq_i = param_dict['freq_leastsq'][data_type][otu_i_idx]
-            param_mean_leastsq_i = param_dict['param_mean_leastsq'][data_type][otu_i_idx]
-            amp_leastsq_i = param_dict['amp_leastsq'][data_type][otu_i_idx]
-            afd_i = param_dict['data']['afd'][data_type][otu_i_idx]
+            param_mean_leastsq_i = param_dict['param_mean_mle'][data_type][otu_i_idx]
+            amp_leastsq_i = param_dict['amp_mle'][data_type][otu_i_idx]
+
+            afd_i = param_dict['data']['clr_afd'][data_type][otu_i_idx]
             days_i = param_dict['data']['days'][data_type][otu_i_idx]
 
             afd_i = numpy.asarray(afd_i)
@@ -92,7 +86,6 @@ def make_autocorrelation_dict(clr_status=True):
 
             rho_autocorr_clr_vs_temp = numpy.corrcoef(autocorr_obs_i[delta_t_i_to_keep_idx], autocorr_obs_env[delta_t_env_to_keep_idx])[0,1]
 
-
             autocorr_dict['otu'][otu_i][data_type] = {}
             autocorr_dict['otu'][otu_i][data_type]['delta_t'] = delta_t_i.tolist()
             autocorr_dict['otu'][otu_i][data_type]['autocorr_obs'] = autocorr_obs_i.tolist()
@@ -107,8 +100,9 @@ def make_autocorrelation_dict(clr_status=True):
 
 
 
-def plot_autocorrelation_otu(data_type, clr_status=True):
+def plot_autocorrelation_otu(data_type):
 
+    param_dict = pickle.load(open(sine_parameter_utils.param_otu_mle_dict_path, "rb"))
     autocorr_dict = pickle.load(open(autocorrelation_dict_path, "rb"))
 
     otu_labels = list(autocorr_dict['otu'].keys())
@@ -131,19 +125,12 @@ def plot_autocorrelation_otu(data_type, clr_status=True):
             ax = plt.subplot2grid((len(chunk_all), len(chunk_all[0])), (chunk_idx, c_idx))
 
 
-            delta_t_c = autocorr_dict['otu'][otu_labels[c]][data_type]['delta_t']
+            delta_t_c = numpy.asarray(autocorr_dict['otu'][otu_labels[c]][data_type]['delta_t'])
             autocorr_obs_c = autocorr_dict['otu'][otu_labels[c]][data_type]['autocorr_obs']
             
-            #autocorr_obs_c = [numpy.corrcoef(afd_c_rescaled[i:], afd_c_rescaled[:-i])[0,1] for i in time_increments_c]
-            #autocorr_pred_c = 0.5*numpy.cos((2*numpy.pi*delta_t)/freq_leastsq_all[c])
-            #autocorr_pred_c = 0.5*numpy.cos(freq_leastsq_all[c]*delta_t_c)
-
-
-            ax.scatter(delta_t_c, autocorr_obs_c, s=7, alpha=1, c=utils.dna_rna_color_dict[data_type], label='Observed')
-            #ax.plot(delta_t_c, autocorr_pred_c, ls='-', lw=1, c=utils.dna_rna_color_dict[data_type], label='Predicted')
-
-            ax.scatter(delta_t_env, autocorr_obs_env, s=7, alpha=1, c='k', label='Water temp.')
-
+            autocorr_pred_c = 0.5*numpy.cos((delta_t_c*param_dict['freq_mle'][data_type][c]))
+            ax.scatter(delta_t_c, autocorr_obs_c, s=7, alpha=1, zorder=1, c=utils.dna_rna_color_dict[data_type], label='Observed')
+            ax.plot(delta_t_c, autocorr_pred_c, ls='-', lw=3, zorder=2, c=utils.dna_rna_color_dict[data_type], label='Predicted')
 
             ax.set_xlabel("Time difference (days), " + r'$\Delta t$', fontsize = 10)
             ax.set_ylabel("Autocorrelation, " + utils.sample_label_dict[data_type], fontsize = 10)
@@ -154,7 +141,7 @@ def plot_autocorrelation_otu(data_type, clr_status=True):
     
 
     fig.subplots_adjust(hspace=0.35, wspace=0.40)
-    fig_name = "%sautocorrelation_otu_%s%s.png" % (config.analysis_directory, sine_parameter_utils.clr_status_label_dict[clr_status], data_type)
+    fig_name = "%sautocorrelation_otu_%s.png" % (config.analysis_directory, data_type)
     fig.savefig(fig_name, format='png', bbox_inches = "tight", pad_inches = 0.4, dpi = 600)
     plt.close()
 
@@ -176,7 +163,7 @@ if __name__ == "__main__":
 
     #make_autocorrelation_dict()
 
-    plot_autocorrelation_otu(args.data_type, clr_status=True)
+    plot_autocorrelation_otu(args.data_type)
 
     
 

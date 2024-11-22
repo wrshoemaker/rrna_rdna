@@ -43,6 +43,11 @@ for data_type_idx, data_type in enumerate(['DNA', 'RNA']):
     ax_mad = plt.subplot2grid((3, 2), (1, data_type_idx))
     ax_taylors = plt.subplot2grid((3, 2), (2, data_type_idx))
 
+    ax_afd.text(-0.1, 1.07, utils.sub_plot_labels[data_type_idx], fontsize=10, fontweight='bold', ha='center', va='center', transform=ax_afd.transAxes)
+    ax_mad.text(-0.1, 1.07, utils.sub_plot_labels[2+data_type_idx], fontsize=10, fontweight='bold', ha='center', va='center', transform=ax_mad.transAxes)
+    ax_taylors.text(-0.1, 1.07, utils.sub_plot_labels[4+data_type_idx], fontsize=10, fontweight='bold', ha='center', va='center', transform=ax_taylors.transAxes)
+
+
     ax_afd.set_title(data_type, fontsize=12, color=utils.dna_rna_color_dict[data_type], fontweight='bold')
 
 
@@ -71,7 +76,7 @@ for data_type_idx, data_type in enumerate(['DNA', 'RNA']):
     shape_gamma, loc_gamma, scale_gamma = stats.loggamma.fit(rescaled_afd_log10_all)
     x = numpy.linspace(stats.loggamma.ppf(0.001, shape_gamma, loc=loc_gamma, scale=scale_gamma), stats.loggamma.ppf(0.999, shape_gamma, loc=loc_gamma, scale=scale_gamma), 100)
     pdf_loggamma_to_plot = stats.loggamma.pdf(x, shape_gamma, loc=loc_gamma, scale=scale_gamma)
-    ax_afd.plot(x, pdf_loggamma_to_plot, 'k', ls='--', lw=3, label='Gamma')
+    ax_afd.plot(x, pdf_loggamma_to_plot, 'k', ls='--', lw=3, label='Gamma fit')
 
     ax_afd.set_ylim([min(hist_to_plot_all), max(hist_to_plot_all)])
     ax_afd.set_yscale('log', basey=10)
@@ -180,6 +185,7 @@ for data_type_idx, data_type in enumerate(['DNA', 'RNA']):
 
 
     if data_type_idx == 0:
+        ax_afd.legend(loc="upper left", fontsize=8)
         ax_mad.legend(loc="lower right", fontsize=8)
         #ax_logfold.legend(loc="upper left", fontsize=8)
 

@@ -27,9 +27,11 @@ numpy.random.seed(123456789)
 
 
 param_oscillation_artifact_simulation_path = config.data_directory + 'param_oscillation_artifact_simulation_dict.pickle'
+param_oscillation_artifact_simulation_clr_all_otus_path = config.data_directory + 'param_oscillation_artifact_simulation_clr_all_otus_dict.pickle'
+
+
 compare_clr_to_true_abundance_dict_path = config.data_directory + 'compare_clr_to_true_abundance_dict.pickle'
 compare_clr_to_true_abundance_oscillating_dict_path = config.data_directory + 'compare_clr_to_true_abundance_oscillating_dict.pickle'
-
 data_collapse_simulation_path = config.data_directory + 'data_collapse_simulation.pickle'
 
 
@@ -513,7 +515,9 @@ def test_amp_effect_fix_mean_var_clr(mu, s, S, N, dist, gm, n_sites, rhogamma=0)
 
 
 
-def oscillation_artifact_simulation(mu, s, S, N, dist, gm_all, n_sites, focal_amp_all=[4], focal_freq_all=[2*numpy.pi/365], focal_phase_all=[1.8], n_iter=1, rhogamma=0):
+def oscillation_artifact_simulation(mu, s, S, N, dist, gm_all, n_sites, focal_amp_all=[4], focal_freq_all=[2*numpy.pi/365], focal_phase_all=[1.8], n_iter=1, rhogamma=0, clr_all_otus=False):
+
+    # clr_all_otus = boolean, asks whether to use CLR for all OTUs with an added pseudocount of one.
 
     # Fix distribution of K_0
     # Loop through iteration
@@ -622,12 +626,17 @@ def oscillation_artifact_simulation(mu, s, S, N, dist, gm_all, n_sites, focal_am
 
                 # relative abundance
                 rel_read_counts_multinomial_all_nonzero = read_counts_multinomial_all_nonzero/numpy.sum(read_counts_multinomial_all_nonzero, axis=0)
-                #rescaled_rel_s_by_s = utils.rescale_s_by_s(read_counts_multinomial_all_nonzero)
                 # all species are used to calculate relative abundance
 
                 # CLR
-                clr_s_by_s, occupancy_idx = utils.clr_transform_sim(read_counts_multinomial_all_nonzero, min_occupancy=1)
-                rescaled_clr_s_by_s = (clr_s_by_s.T - numpy.mean(clr_s_by_s, axis=1)).T
+                if clr_all_otus == True:
+                    clr_s_by_s, occupancy_idx = utils.clr_transform_sim(read_counts_multinomial_all_nonzero, min_occupancy=1)
+                else:
+                    clr_s_by_s, occupancy_idx = utils.clr_transform_sim_subset(read_counts_multinomial_all_nonzero, min_occupancy=1)
+                
+
+
+                rescaled_clr_s_by_s = (clr_s_by_s - numpy.mean(clr_s_by_s, axis=0))
 
                 afd_iter_dict[gm][sine_param_combo] = {}
                 afd_iter_dict[gm][sine_param_combo]['num_sampled_species_log_rel'] = read_counts_multinomial_all_nonzero.shape[0]
@@ -642,8 +651,6 @@ def oscillation_artifact_simulation(mu, s, S, N, dist, gm_all, n_sites, focal_am
                     else:
                         rank_idx = -2
 
-                    #read_counts_multinomial_all_nonzero_focal_rank = read_counts_multinomial_all_nonzero[rank_idx,:]
-                    #rel_read_counts_multinomial_all_nonzero_focal_rank
 
                     afd_otu = rel_abundances_all[rank_idx,:]
                     afd_otu = abundances_all[rank_idx,:]
@@ -657,8 +664,6 @@ def oscillation_artifact_simulation(mu, s, S, N, dist, gm_all, n_sites, focal_am
                     if sum(numpy.isnan(afd_clr_otu)) > 0:
                         skip_iter = True
                     
-
-                    #print(afd_otu)
                     afd_iter_dict[gm][sine_param_combo][otu_type]['true_abundance'] = afd_otu
                     afd_iter_dict[gm][sine_param_combo][otu_type]['clr'] = afd_clr_otu
                     afd_iter_dict[gm][sine_param_combo][otu_type]['log_rel'] = afd_log_rel_otu
@@ -770,8 +775,14 @@ def oscillation_artifact_simulation(mu, s, S, N, dist, gm_all, n_sites, focal_am
 
 
 
+    if clr_all_otus == True:
+        path_ = param_oscillation_artifact_simulation_clr_all_otus_path
+    else:
+        path_ = param_oscillation_artifact_simulation_path
+    
+
     sys.stderr.write("Saving parameter dictionary...\n")
-    with open(param_oscillation_artifact_simulation_path, 'wb') as outfile:
+    with open(path_, 'wb') as outfile:
         pickle.dump(param_dict, outfile, protocol=pickle.HIGHEST_PROTOCOL)
     sys.stderr.write("Done!\n")
 
@@ -797,7 +808,6 @@ def oscillation_artifact_simulation(mu, s, S, N, dist, gm_all, n_sites, focal_am
 
 def plot_oscillation_artifact_simulation():
 
-
     fig = plt.figure(figsize = (8, 8))
 
     param_dict = pickle.load(open(param_oscillation_artifact_simulation_path, "rb"))
@@ -807,6 +817,9 @@ def plot_oscillation_artifact_simulation():
         for rank_idx, rank in enumerate(['focal', 'nonfocal']):
 
             ax = plt.subplot2grid((2, 2), (method_idx, rank_idx))
+
+            ax.text(-0.1, 1.07, utils.sub_plot_labels[method_idx+rank_idx], fontsize=10, fontweight='bold', ha='center', va='center', transform=ax.transAxes)
+
 
             for gm_idx, gm in enumerate(list(param_dict[method][rank].keys())):
 
@@ -828,16 +841,19 @@ def plot_oscillation_artifact_simulation():
 
 
                     if method == 'log_rel':
-                        ax.set_title('Log relative abundance', fontsize=12)
+                        ax.set_title('Relative abundance', fontsize=12)
                     else:
-                        ax.set_title('CLR abundance', fontsize=12)
+                        ax.set_title('CLR-transformed abundance', fontsize=12)
 
                     
-                ax.plot(amp_first_rank, amp_inferred, lw=2, ls='-', c=gm_color[gm], label='Std. dev of ' + r'$\sigma^{2}$' ' dist. = ' + str(round(gm, 3)))
+                ax.plot(amp_first_rank, amp_inferred, lw=2, ls='-', c=gm_color[gm], label='Mean ' + r'$\sigma$' ' = ' + str(round(gm, 3)))
                 ax.set_xlabel('True amplitude of oscillating focal OTU', fontsize=11)
 
                 if method_idx == 0:
                     ax.legend(loc='upper left', fontsize=8)
+
+                #if method_idx == 3:
+                #    ax.legend(loc='upper left', fontsize=8)
 
 
                 if method_idx + rank_idx == 2:
@@ -1066,7 +1082,8 @@ def make_compare_clr_to_true_abundance_oscillating_dict(n_iter=10):
     # phase rangeing from yearily to daily oscillations..
     freq_range = numpy.linspace(2*numpy.pi/365, 2*numpy.pi, num=10)
     amp_range = numpy.linspace(0, 2, num=10)
-    sigma_all = numpy.logspace(-2, numpy.log10(1), base=10, num=10)
+    #sigma_all = numpy.logspace(-2, numpy.log10(1), base=10, num=10)
+    sigma_all = numpy.linspace(0.1, 1.5, num=10)
 
     mle_dict = {}
 
@@ -1109,10 +1126,12 @@ def make_compare_clr_to_true_abundance_oscillating_dict(n_iter=10):
                     # no absences
                     if sum(read_counts_multinomial_all[:,0] == 0) > 0:
                         continue
+                    
+                    # length of vector is number of samples
+                    n_reads_gmean = gmean(read_counts_multinomial_all, axis=1)
 
-                    n_reads_gmean = gmean(read_counts_multinomial_all, axis=0)
-
-                    clr_s_by_s = numpy.log(read_counts_multinomial_all/n_reads_gmean)
+                    #clr_s_by_s = numpy.log(read_counts_multinomial_all/n_reads_gmean)
+                    clr_s_by_s = (numpy.log(read_counts_multinomial_all).T - numpy.log(n_reads_gmean)).T
                     rel_s_by_s = (read_counts_multinomial_all.T/n_reads).T
 
                     focal_clr = clr_s_by_s[0,:]
@@ -1121,9 +1140,9 @@ def make_compare_clr_to_true_abundance_oscillating_dict(n_iter=10):
                     sigma_clr = mle_sigma(numpy.exp(focal_clr))
                     sigma_rel = mle_sigma(focal_rel)
 
-                    mle_dict[freq][amp][sigma]['sigma_inferred_rel'].append(sigma_rel)
                     mle_dict[freq][amp][sigma]['sigma_inferred_clr'].append(sigma_clr)
-                    
+                    mle_dict[freq][amp][sigma]['sigma_inferred_rel'].append(sigma_rel)
+
 
     with open(compare_clr_to_true_abundance_oscillating_dict_path, 'wb') as outfile:
         pickle.dump(mle_dict, outfile, protocol=pickle.HIGHEST_PROTOCOL)
@@ -1145,6 +1164,8 @@ def plot_compare_clr_to_true_abundance_oscillating():
     simga_all = list(mle_dict[freq_all[0]][amp_all[0]].keys())
     simga_all.sort()
 
+    print(simga_all)
+
     fig = plt.figure(figsize = (20, 20))
     fig.subplots_adjust(bottom= 0.15)
 
@@ -1157,15 +1178,15 @@ def plot_compare_clr_to_true_abundance_oscillating():
 
             ax = plt.subplot2grid((len(freq_all), len(amp_all)), (freq_idx, amp_idx), colspan=1)
 
-            ax.plot(simga_all, rel_error_rel_all, c='#87CEEB', lw=2, label='Rel. abundance')
-            ax.plot(simga_all, rel_error_clr_all, c='#FF6347', lw=2, label='CLR abundance')
+            ax.plot(simga_all, rel_error_rel_all, c='#87CEEB', lw=2, label='Relative')
+            ax.plot(simga_all, rel_error_clr_all, c='#FF6347', lw=2, label='CLR')
+
+            print(rel_error_rel_all[:4], rel_error_clr_all[:4])
 
             #ax.set_title('Freq. = %.3f, Amp. = %.3f' % (freq, amp), fontsize=12)
-            ax.set_xscale('log', basex=10)
+            #ax.set_xscale('log', basex=10)
             
-
             ax.axhline(y=0, ls=':', lw=2, c='k')
-
             ax.xaxis.set_tick_params(labelsize=6)
             ax.yaxis.set_tick_params(labelsize=6)
 
@@ -1339,10 +1360,11 @@ if __name__ == "__main__":
     S = 1000
     N = 100000
 
-    #oscillation_artifact_simulation(0.001, s, S, N, 'exp', [0.1, 0.3, 0.5], n_sites, focal_amp_all=[0, 0.5, 1, 1.5, 2], n_iter=10)
-    
+    #plot_oscillation_artifact_simulation()
+
+    #oscillation_artifact_simulation(0.001, s, S, N, 'exp', [0.1, 0.3, 0.5], n_sites, focal_amp_all=[0, 0.5, 1, 1.5, 2], n_iter=10, clr_all_otus=False)
+
     #data_collapse_simulation(0.001, s, S, N, 'exp', 1, n_sites, n_iter=1)
-    plot_oscillation_artifact_simulation()
 
     #test_amp_effect_fix_mean_var(0.0001, s, S, N, 'exp', 0.1, n_sites)
 
@@ -1359,4 +1381,7 @@ if __name__ == "__main__":
 
     #make_compare_clr_to_true_abundance_oscillating_dict()
 
-    #plot_compare_clr_to_true_abundance_oscillating()
+    plot_compare_clr_to_true_abundance_oscillating()
+    
+    #plot_oscillation_artifact_simulation()
+

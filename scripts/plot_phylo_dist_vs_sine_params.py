@@ -103,7 +103,7 @@ def plot_dist_vs_sine_parameters():
 
 
 
-    fig.subplots_adjust(hspace=0.2, wspace=0.3)
+    fig.subplots_adjust(hspace=0.3, wspace=0.35)
     fig_name = "%sphylo_dist_vs_sine_params.png" % config.analysis_directory
     fig.savefig(fig_name, format='png', bbox_inches = "tight", pad_inches = 0.4, dpi = 600)
     plt.close()

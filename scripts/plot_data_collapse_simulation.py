@@ -36,6 +36,9 @@ fig.text(0.2, 0.94, "Simulated gamma abundances\nwith constant carrying capacity
 ax_data = fig.add_subplot(gs[0, :])
 ax_data_rescaled = fig.add_subplot(gs[1, :])
 
+ax_data.text(-0.1, 1.09, utils.sub_plot_labels[0], fontsize=10, fontweight='bold', ha='center', va='center', transform=ax_data.transAxes)
+ax_data_rescaled.text(-0.1, 1.09, utils.sub_plot_labels[1], fontsize=10, fontweight='bold', ha='center', va='center', transform=ax_data_rescaled.transAxes)
+
 
 ax_data_rescaled.xaxis.set_tick_params(labelsize=7)
 
