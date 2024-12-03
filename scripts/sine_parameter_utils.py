@@ -20,7 +20,6 @@ numpy.random.seed(123456789)
 
 param_otu_dict_path = config.data_directory + 'param_otu_%s%s%sdict.pickle'
 param_otu_mle_dict_path = config.data_directory + 'param_otu_mle_dict.pickle'
-
 param_env_dict_path = config.data_directory + 'param_env_dict.pickle'
 
 
@@ -574,7 +573,7 @@ def make_param_mle_otu_dict(min_occupancy=1):
 
             freq_value = 2*numpy.pi/365 # 0.01721420632
             freq_min = 2*numpy.pi/550 # 0.01142397328 (365+185)
-            freq_max = 2*numpy.pi/180 # 0.034906585 (365-185)
+            freq_max = 2*numpy.pi/70 # 0.034906585 (365-185)
 
             phase_value = numpy.pi
             phase_min = 0
@@ -631,8 +630,11 @@ def make_param_mle_otu_dict(min_occupancy=1):
                 #param_dict['%s_mle_lower_ci' % p][data_type].append(ci[p][0][1])
                 #param_dict['%s_mle_upper_ci' % p][data_type].append(ci[p][2][1])
 
-                if p == 'amp':
-                    print(best_params_mle[p].value)
+                #if p == 'amp':
+                #    print(best_params_mle[p].value)
+                
+                if p == 'freq':
+                    print(2*numpy.pi/best_params_mle[p].value)
 
 
             param_dict['data']['days'][data_type].append(days_afd.tolist())
@@ -1419,16 +1421,20 @@ def plot_time_vs_abundance_clr(data_type='RNA', otu_to_remove=None, method='mle'
             afd_c = afd[c]
             #afd_c = clr_s_by_s_rna_subset[c,:]
 
-
             amp = param_dict['amp_%s' % method][data_type][c]
             freq = param_dict['freq_%s' % method][data_type][c]
             phase = param_dict['phase_%s' % method][data_type][c]
             param_mean = param_dict['param_mean_%s' % method][data_type][c]
             #upper_bound = param_dict['upper_bound'][data_type][c]
             beta = param_dict['beta'][data_type][c]
-
+            sigma = (2/(beta+1))
+            
             days_range = numpy.linspace(min(days_c), max(days_c), 1000)
-            model_prediction = amp*numpy.sin(freq*days_range+phase) + numpy.log(param_mean)
+
+            if sigma < 2:
+                model_prediction = amp*numpy.sin(freq*days_range+phase) + numpy.log(param_mean) + numpy.log(1 - sigma/2)
+            else:
+                model_prediction = amp*numpy.sin(freq*days_range+phase) + numpy.log(param_mean) + numpy.log(1 - sigma/2)
 
             ax.plot(days_range, model_prediction, ls='-', lw=3, c=utils.dna_rna_color_dict[data_type], zorder=1)
 
@@ -1542,7 +1548,7 @@ def plot_time_vs_clr_ratio(method='mle'):
 
     metadata_dict = utils.build_metadata_dict()
     s_by_s, otu_labels, samples = utils.load_count_data()
-    clr_s_by_s_dna, clr_s_by_s_rna, otu_labels_subset = utils.clr_transform(s_by_s, otu_labels, samples)
+    clr_s_by_s_dna, clr_s_by_s_rna, otu_labels_subset = utils.clr_transform_subset(s_by_s, otu_labels, samples)
 
     # get days
     metadata_dict = utils.build_metadata_dict()
@@ -1701,15 +1707,21 @@ if __name__ == "__main__":
     print("Running...")
 
     # Infer parameters
-    #make_param_mle_otu_dict()
+    make_param_mle_otu_dict()
     #make_param_env_dict()
     
-    plot_time_vs_abundance_clr(data_type='RNA')
-    plot_time_vs_abundance_clr(data_type='DNA')
+    #plot_time_vs_abundance_clr(data_type='RNA')
+    #plot_time_vs_abundance_clr(data_type='DNA')
 
     # plot includes sine difference
     #plot_time_vs_clr_ratio()
 
     #plot_time_vs_env()
 
+
+    #dict_ =  load_param_env_dict()
+    #print(dict_['env_variables_labels'])
+
+    #freq_leastsq = numpy.asarray(dict_['freq_leastsq'])
+    #print(2*numpy.pi/freq_leastsq)
 

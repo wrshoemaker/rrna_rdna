@@ -43,6 +43,10 @@ python plot_compare_rna_dna_macroeco.py
 python python plot_clr_comparison.py
 
 
+python plot_clr_vs_rel_abund_comparison.py
+
+python plot_clr_vs_clr_pseudo_comparison.py
+
 
 
 pyhton plot_n_reads.py
@@ -50,10 +54,10 @@ pyhton plot_n_reads.py
 
 
 # figs to cite
-#time_vs_clr_ratio.png
-# predict_change_dna.png
+
 # fig6.png
-# copy_number_vs_amp.png
-# fig5_formatted.png
+# .png
 # time_vs_env.png
+#copy_number_vs_amp
+
 

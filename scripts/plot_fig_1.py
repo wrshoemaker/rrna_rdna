@@ -28,7 +28,7 @@ minor_days, major_days, major_labels = utils.get_seasonal_tick_labels()
 otu_idx = numpy.where(otu_labels == 'Otu000001')[0][0]
 
 
-fig = plt.figure(figsize = (8.5, 8))
+fig = plt.figure(figsize = (4.5, 8))
 fig.subplots_adjust(bottom= 0.15)
 
 
@@ -49,8 +49,8 @@ for data_type_idx, data_type in enumerate(['DNA', 'RNA']):
     #rel_s_by_s_data_afd_idx = (numpy.sum(rel_s_by_s_data>0, axis=1)/len(n_reads)) >= min_occupany_afd
     #rel_s_by_s_data_afd = rel_s_by_s_data[rel_s_by_s_data_afd_idx,:]
 
-    ax_timeseries = plt.subplot2grid((2, 2), (data_type_idx, 0))
-    ax_logfold = plt.subplot2grid((2, 2), (data_type_idx, 1))
+    ax_timeseries = plt.subplot2grid((2, 1), (data_type_idx, 0))
+    #ax_logfold = plt.subplot2grid((2, 2), (data_type_idx, 1))
 
     if data_type_idx == 0:
         labels = ['b', 'd']
@@ -65,46 +65,49 @@ for data_type_idx, data_type in enumerate(['DNA', 'RNA']):
 
     ax_timeseries.plot(days, afd, lw=1, alpha=1, color=utils.dna_rna_color_dict[data_type], zorder=1)
     ax_timeseries.scatter(days, afd, s=6, alpha=1, color=utils.dna_rna_color_dict[data_type], zorder=1)
-    ax_timeseries.set_ylabel( data_type + " relative abundance, " + r'$\hat{x}_{i}(t)$' , fontsize=14)
+    ax_timeseries.set_ylabel("Relative abundance, " + r'$\hat{x}_{i}(t)$' , fontsize=18)
     ax_timeseries.set_yscale('log', basey=10)
 
     ax_timeseries.set_xlim([0, max(days)])
     ax_timeseries.set_xticks(minor_days, minor=True)
     ax_timeseries.set_xticks(major_days, minor=False)
-    ax_timeseries.set_xticklabels(major_labels, minor=False, fontsize=7)
-    ax_timeseries.set_xlabel("Time (days)", fontsize=14)
-    ax_timeseries.yaxis.set_tick_params(labelsize=7)
+    ax_timeseries.set_xticklabels(major_labels, minor=False, fontsize=12)
+    
+    ax_timeseries.yaxis.set_tick_params(labelsize=12)
+
+    if data_type_idx == 1:
+
+        ax_timeseries.set_xlabel("Time (days)", fontsize=18)
+
+    #ax_logfold.plot(days[:-1], logfold, lw=1, alpha=1, color=utils.dna_rna_color_dict[data_type], zorder=2)
+    #ax_logfold.scatter(days[:-1], logfold, s=6, alpha=1, color=utils.dna_rna_color_dict[data_type], zorder=2)
+
+    #max_logfold = 1.4*numpy.max(numpy.absolute(logfold))
+
+    #ax_logfold.set_xlim([0, max(days)])
+    #ax_logfold.set_ylim([-1*max_logfold, max_logfold])
+    #ax_logfold.set_xticks(minor_days, minor=True)
+    #ax_logfold.set_xticks(major_days, minor=False)
+    #ax_logfold.set_xticklabels(major_labels, minor=False, fontsize=7)
+    #ax_logfold.set_xlabel("Time (days)", fontsize=14)
+    #ax_logfold.yaxis.set_tick_params(labelsize=7)
+    #ax_logfold.set_ylabel("Log-fold change in " + r'$\hat{x}_{i}(t)$' +  " b/w timepoints", fontsize=12)
+    #ax_logfold.axhline(y=0, lw=2.5, ls=':', label='Stationarity', color='k', zorder=1)
 
 
-    ax_logfold.plot(days[:-1], logfold, lw=1, alpha=1, color=utils.dna_rna_color_dict[data_type], zorder=2)
-    ax_logfold.scatter(days[:-1], logfold, s=6, alpha=1, color=utils.dna_rna_color_dict[data_type], zorder=2)
-
-    max_logfold = 1.4*numpy.max(numpy.absolute(logfold))
-
-    ax_logfold.set_xlim([0, max(days)])
-    ax_logfold.set_ylim([-1*max_logfold, max_logfold])
-    ax_logfold.set_xticks(minor_days, minor=True)
-    ax_logfold.set_xticks(major_days, minor=False)
-    ax_logfold.set_xticklabels(major_labels, minor=False, fontsize=7)
-    ax_logfold.set_xlabel("Time (days)", fontsize=14)
-    ax_logfold.yaxis.set_tick_params(labelsize=7)
-    ax_logfold.set_ylabel("Log-fold change in " + r'$\hat{x}_{i}(t)$' +  " b/w timepoints", fontsize=12)
-    ax_logfold.axhline(y=0, lw=2.5, ls=':', label='Stationarity', color='k', zorder=1)
-
-
-    ax_logfold_inset = inset_axes(ax_logfold, width="100%", height="100%", bbox_to_anchor=(0.6,0.1,0.35,0.35), bbox_transform=ax_logfold.transAxes, loc='upper left')
-    ax_logfold_inset.tick_params(labelleft=False, labelbottom=True)
-    ax_logfold_inset.xaxis.set_tick_params(labelsize=6)
-    ax_logfold_inset.hist(logfold, lw=2, alpha=1, bins= 15, color=utils.dna_rna_color_dict[data_type], histtype='step', density=True, zorder=2)
-    ax_logfold_inset.axvline(x=0, lw=2.5, ls=':', color='k', zorder=1)
-    ax_logfold_inset.set_xlim([-1*max_logfold, max_logfold])
+    #ax_logfold_inset = inset_axes(ax_logfold, width="100%", height="100%", bbox_to_anchor=(0.6,0.1,0.35,0.35), bbox_transform=ax_logfold.transAxes, loc='upper left')
+    #ax_logfold_inset.tick_params(labelleft=False, labelbottom=True)
+    #ax_logfold_inset.xaxis.set_tick_params(labelsize=6)
+    #ax_logfold_inset.hist(logfold, lw=2, alpha=1, bins= 15, color=utils.dna_rna_color_dict[data_type], histtype='step', density=True, zorder=2)
+    #ax_logfold_inset.axvline(x=0, lw=2.5, ls=':', color='k', zorder=1)
+    #ax_logfold_inset.set_xlim([-1*max_logfold, max_logfold])
 
     #ax_logfold_inset.set_xlabel("Log-fold abundance ratio, " + r'$\Delta \ell_{x}$', fontsize=8)
-    ax_logfold_inset.set_ylabel("Probability density", fontsize=7)
+    #ax_logfold_inset.set_ylabel("Probability density", fontsize=7)
 
 
-    if data_type_idx == 0:
-        ax_logfold.legend(loc='upper left', fontsize=10)
+    #if data_type_idx == 0:
+    #    ax_logfold.legend(loc='upper left', fontsize=10)
 
 
 

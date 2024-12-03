@@ -233,7 +233,7 @@ ax_sim_nonfocal_param.legend(loc="upper left", fontsize=8)
 
 
 fig.subplots_adjust(hspace=0.4, wspace=0.4)
-fig_name = "%sclr_comparison.png" % config.analysis_directory
+fig_name = "%sclr_vs_clr_pseudo_comparison.png" % config.analysis_directory
 fig.savefig(fig_name, format='png', bbox_inches = "tight", pad_inches = 0.4, dpi = 600)
 plt.close()
 
