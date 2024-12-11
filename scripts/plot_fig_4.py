@@ -32,7 +32,8 @@ null_predict_change_dict = plot_predict_change_dna.load_null_predict_change_dict
 days = numpy.asarray(param_dict['data']['days']['RNA'][0])
 
 focal_otu = 'Otu000001'
-focal_otu_formatted = 'OTU 1'
+#focal_otu_formatted = 'OTU 1'
+focal_otu_formatted = 'OTU 1 ('+ r'$\mathit{Anabaena}$' + ' sp.)'
 
 focal_otu_idx = 0
 

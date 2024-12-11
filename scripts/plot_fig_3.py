@@ -89,7 +89,7 @@ delta_phase_new = numpy.asarray(delta_phase_new)
 
 ax_timescale.hist(timescale_dna, 8, histtype='step', density=True, stacked=True, fill=False, color=utils.dna_rna_color_dict['DNA'], label='DNA')
 ax_timescale.hist(timescale_rna, 8, histtype='step', density=True, stacked=True, fill=False, color=utils.dna_rna_color_dict['RNA'], label='RNA')
-ax_timescale.set_xlabel('Oscillation timescale, ' + r'$\tau_{i}^{\mathrm{env}}$', fontsize=12, zorder=3)
+ax_timescale.set_xlabel('Oscillation timescale (days), ' + r'$\tau_{i}^{\mathrm{env}}$', fontsize=12, zorder=3)
 
 ax_timescale.axvline(x=365, ls='--', color='k', lw=2, label='Yearly', zorder=3)
 #ax_timescale.axvline(x=365/2, ymin=0, ymax=0.0037, ls=':', color='k', lw=2, label='Semi-yearly', zorder=3)

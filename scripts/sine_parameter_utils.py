@@ -1702,12 +1702,54 @@ def plot_time_vs_env():
 
 
 
+def make_flat_file_for_gam():
+
+    param_otu_dict =  pickle.load(open(param_otu_mle_dict_path, 'rb'))
+    #param_env_dict = load_param_env_dict()
+    #otu_idx = 0
+    #otu_idx = param_otu_dict['otu_labels'].index('Otu000046')
+
+    days = [str(d) for d in param_otu_dict['data']['days']['DNA'][0]]
+    
+    file_ = open('%sdata_for_gam.csv' % config.data_directory, 'w')
+    sample_idx = [str(d) for d in list(range(len(days)))]
+    file_.write('sample_number,' + ",".join(sample_idx) + '\n')
+    file_.write('days,' + ",".join(days) + '\n')
+
+    for otu_i_idx in range(len(param_otu_dict['otu_labels'])):
+    
+        afd_dna = numpy.asarray(param_otu_dict['data']['clr_afd']['DNA'][otu_i_idx])
+        afd_rna = numpy.asarray(param_otu_dict['data']['clr_afd']['RNA'][otu_i_idx])
+
+        otu_label_i = param_otu_dict['otu_labels'][otu_i_idx]
+
+        file_.write(otu_label_i + '_dna,' + ",".join([str(d) for d in afd_dna]) + '\n')    
+        file_.write(otu_label_i + '_rna,' + ",".join([str(d) for d in afd_rna]) + '\n')    
+        file_.write(otu_label_i + '_rna_dna,' + ",".join([str(d) for d in (afd_rna - afd_dna)]) + '\n')    
+            
+    #file
+    #file_.write('clr_afd_otu1_dna,' + ",".join([str(d) for d in afd_dna]) + '\n')    
+    #file_.write('clr_afd_otu1_rna,' + ",".join([str(d) for d in afd_rna]) + '\n')    
+    #file_.write('clr_afd_otu1_rna_dna,' + ",".join([str(d) for d in (afd_rna - afd_dna)]) + '\n')    
+
+    for env_variable in utils.env_variable_all:
+        env_variable_array = [str(metadata_dict[s][env_variable]) for s in samples[(sample_type=='RNA')]]
+        file_.write(env_variable + ',' + ",".join(env_variable_array) + '\n')    
+
+
+    file_.close()
+
+
+
+
+
+
 if __name__ == "__main__":
 
     print("Running...")
 
     # Infer parameters
-    make_param_mle_otu_dict()
+    #make_param_mle_otu_dict()
     #make_param_env_dict()
     
     #plot_time_vs_abundance_clr(data_type='RNA')
@@ -1720,8 +1762,10 @@ if __name__ == "__main__":
 
 
     #dict_ =  load_param_env_dict()
-    #print(dict_['env_variables_labels'])
 
     #freq_leastsq = numpy.asarray(dict_['freq_leastsq'])
     #print(2*numpy.pi/freq_leastsq)
+
+
+    make_flat_file_for_gam()
 

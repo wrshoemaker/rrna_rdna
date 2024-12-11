@@ -31,7 +31,7 @@ param_oscillation_artifact_simulation_clr_all_otus_path = config.data_directory 
 
 
 compare_clr_to_true_abundance_dict_path = config.data_directory + 'compare_clr_to_true_abundance_dict.pickle'
-compare_clr_to_true_abundance_oscillating_dict_path = config.data_directory + 'compare_clr_to_true_abundance_oscillating_dict.pickle'
+compare_sigma_clr_to_true_abundance_oscillating_dict_path = config.data_directory + 'compare_sigma_clr_to_true_abundance_oscillating_dict.pickle'
 data_collapse_simulation_path = config.data_directory + 'data_collapse_simulation.pickle'
 
 
@@ -50,6 +50,7 @@ gm_color = {0.1:'lightskyblue', 0.3:'dodgerblue', 0.5:'royalblue'}
 gm_color_clr = {0.1:'lightskyblue', 0.3:'dodgerblue', 0.5:'royalblue'}
 gm_color_rel = {0.1:'coral', 0.3:'orangered', 0.5:'firebrick'}
 
+otu_type_all = ['focal', 'nonfocal']
 
 #amp_colormap = utils.make_colormap('DNA', len(amp_focal_range))
 
@@ -524,8 +525,6 @@ def oscillation_artifact_simulation(mu, s, S, N, dist, gm_all, n_sites, focal_am
     # For each iteration draw sigmas, and abundanaces from distribution using each sine parameter combination
     # Fit model
     # get parameters
-
-    otu_type_all = ['focal', 'nonfocal']
 
     sine_param_combo_all = list(itertools.product(focal_amp_all, focal_freq_all, focal_phase_all))
 
@@ -1070,7 +1069,7 @@ def plot_compare_clr_to_true_abundance():
 
 
 
-def make_compare_clr_to_true_abundance_oscillating_dict(n_iter=10):
+def make_compare_sigma_clr_to_true_abundance_oscillating_dict_old(n_iter=10):
 
     log_K_0 = -3
     amp = 1.5
@@ -1144,7 +1143,137 @@ def make_compare_clr_to_true_abundance_oscillating_dict(n_iter=10):
                     mle_dict[freq][amp][sigma]['sigma_inferred_rel'].append(sigma_rel)
 
 
-    with open(compare_clr_to_true_abundance_oscillating_dict_path, 'wb') as outfile:
+    with open(compare_sigma_clr_to_true_abundance_oscillating_dict_path, 'wb') as outfile:
+        pickle.dump(mle_dict, outfile, protocol=pickle.HIGHEST_PROTOCOL)
+
+
+
+
+def make_compare_sigma_clr_to_true_abundance_oscillating_dict(mu, s, S, N, n_sites, n_iter=1):
+
+    #amp = 1.5
+    #freq = 0.018
+    focal_phase = 1.8
+
+    if type(N) == int:
+        N = numpy.asarray([N]*n_sites)
+
+    focal_freq_range = numpy.linspace(0, 2*numpy.pi/90, num=5)
+    focal_amp_range = numpy.linspace(0, 2, num=5)
+    sigma_all = numpy.linspace(0.1, 1.5, num=10)
+
+    #focal_amp_range = [focal_amp_range[-1]]
+
+     # carrying capacity can be interpreted 
+    # the logarithm of carrying capacities follow a sine wave
+    # quenched for all 
+    log_K_0 = numpy.random.normal(mu, s, S)
+    # sort so that carrying capacities are increasing
+    log_K_0 = numpy.sort(log_K_0)
+
+    sys.stderr.write("Running simulations...\n")
+
+    mle_dict = {}
+    for focal_freq in focal_freq_range:
+
+        mle_dict[focal_freq] = {}
+
+        for focal_amp in focal_amp_range:
+
+            mle_dict[focal_freq][focal_amp] = {}
+
+            for sigma in sigma_all:
+
+                print(focal_freq, focal_amp, sigma)
+
+                mle_dict[focal_freq][focal_amp][sigma] = {}
+                mle_dict[focal_freq][focal_amp][sigma]['focal_clr_afd'] = []
+                mle_dict[focal_freq][focal_amp][sigma]['focal_inferred_sigma'] = []
+
+                mle_dict[focal_freq][focal_amp][sigma]['nonfocal_clr_afd'] = []
+                mle_dict[focal_freq][focal_amp][sigma]['nonfocal_inferred_sigma'] = []
+
+                amp = numpy.repeat(0, repeats=S-1)
+                amp = numpy.append(amp, focal_amp)
+
+                freq = numpy.repeat(1, repeats=S-1)
+                freq = numpy.append(freq, focal_freq)
+
+                phase = numpy.repeat(0, repeats=S-1)
+                phase = numpy.append(phase, focal_phase)
+
+                # generate carrying capacity over time.
+                K_t = numpy.exp((numpy.sin(numpy.outer(days, freq) + phase) * amp) + log_K_0)
+
+                # same sigma for all OTUs
+                #sigmarnd = numpy.repeat(sigma, S)
+                # both focual and nonfocal have same sigma
+                sigmarnd = numpy.repeat(0.5, repeats=S-2)
+                sigmarnd = numpy.append(sigmarnd, sigma)
+                sigmarnd = numpy.append(sigmarnd, sigma)
+
+                while len(mle_dict[focal_freq][focal_amp][sigma]['focal_inferred_sigma']) < n_iter:
+    
+                    skip_iter = False
+
+                    abundances_all, rel_abundances_all, read_counts_multinomial_all, read_counts_multinomial_all_nonzero, non_zero_idx = generate_community_from_sigma_k(S, K_t, sigmarnd, n_sites, N)
+                    # relative abundance
+                    rel_read_counts_multinomial_all_nonzero = read_counts_multinomial_all_nonzero/numpy.sum(read_counts_multinomial_all_nonzero, axis=0)
+                    # all species are used to calculate relative abundance
+                    clr_s_by_s, occupancy_idx = utils.clr_transform_sim_subset(read_counts_multinomial_all_nonzero, min_occupancy=1)
+                    
+                    S_sampled_clr = clr_s_by_s.shape[0]
+                    if S_sampled_clr < 5:
+                        skip_iter = True
+
+                    if skip_iter == True:
+                        continue
+                
+
+                    afd_iter_dict = {}
+
+                    for otu_type in otu_type_all:
+
+                        if otu_type == 'focal':
+                            rank_idx = -1                        
+                        else:
+                            rank_idx = -2
+
+                        #afd_otu = rel_abundances_all[rank_idx,:]
+                        #afd_otu = abundances_all[rank_idx,:]
+                        afd_clr_otu = clr_s_by_s[rank_idx,:]
+
+                        # check for zeros in relative abundance
+                        if sum(rel_read_counts_multinomial_all_nonzero[rank_idx,:] == 0) > 0:
+                            skip_iter = True
+                        
+                        if sum(numpy.isnan(afd_clr_otu)) > 0:
+                            skip_iter = True
+
+                        afd_iter_dict[otu_type] = afd_clr_otu
+
+                    # repeat process
+                    if skip_iter == True:
+                        continue
+
+                    
+                    for otu_type in otu_type_all:
+
+                        afd_clr_otu = afd_iter_dict[otu_type]
+                        
+                        beta_estimate, sigma_estimate = mle_sigma(numpy.exp(afd_clr_otu))
+                        mle_dict[focal_freq][focal_amp][sigma]['%s_clr_afd' % otu_type].append(afd_clr_otu.tolist())
+                        mle_dict[focal_freq][focal_amp][sigma]['%s_inferred_sigma' % otu_type].append(sigma_estimate)
+                        
+                        #print(sigma_estimate)
+                        #print(otu_type)
+                        #print(mle_dict[focal_freq][focal_amp][sigma]['%s_inferred_sigma' % otu_type])
+
+                        #if otu_type == 'focal':
+                        #    print(sigma, sigma_estimate, len(mle_dict[focal_freq][focal_amp][sigma]['%s_inferred_sigma' % otu_type]))
+
+
+    with open(compare_sigma_clr_to_true_abundance_oscillating_dict_path, 'wb') as outfile:
         pickle.dump(mle_dict, outfile, protocol=pickle.HIGHEST_PROTOCOL)
 
 
@@ -1153,7 +1282,7 @@ def make_compare_clr_to_true_abundance_oscillating_dict(n_iter=10):
 
 def plot_compare_clr_to_true_abundance_oscillating():
 
-    mle_dict = pickle.load(open(compare_clr_to_true_abundance_oscillating_dict_path, "rb"))
+    mle_dict = pickle.load(open(compare_sigma_clr_to_true_abundance_oscillating_dict_path, "rb"))
 
     freq_all = list(mle_dict.keys())[:-1]
     freq_all.sort()
@@ -1164,24 +1293,28 @@ def plot_compare_clr_to_true_abundance_oscillating():
     simga_all = list(mle_dict[freq_all[0]][amp_all[0]].keys())
     simga_all.sort()
 
-    print(simga_all)
-
-    fig = plt.figure(figsize = (20, 20))
+    fig = plt.figure(figsize = (12, 12))
     fig.subplots_adjust(bottom= 0.15)
+
+    ax_all = []
+    rel_error_clr_all = []
 
     for freq_idx, freq in enumerate(freq_all):
 
         for amp_idx, amp in enumerate(amp_all):
 
-            rel_error_rel_all = [numpy.mean(numpy.absolute(numpy.asarray(mle_dict[freq][amp][sigma]['sigma_inferred_rel']) - sigma)/sigma) for sigma in simga_all]
-            rel_error_clr_all = [numpy.mean(numpy.absolute(numpy.asarray(mle_dict[freq][amp][sigma]['sigma_inferred_clr']) - sigma)/sigma) for sigma in simga_all]
+            #rel_error_rel_all = [numpy.mean(numpy.absolute(numpy.asarray(mle_dict[freq][amp][sigma]['sigma_inferred_rel']) - sigma)/sigma) for sigma in simga_all]
+            focal_rel_error_clr_all = [numpy.mean(numpy.absolute(numpy.asarray(mle_dict[freq][amp][sigma]['focal_inferred_sigma']) - sigma)/sigma) for sigma in simga_all]
+            nonfocal_rel_error_clr_all = [numpy.mean(numpy.absolute(numpy.asarray(mle_dict[freq][amp][sigma]['nonfocal_inferred_sigma']) - sigma)/sigma) for sigma in simga_all]
+
+            rel_error_clr_all.extend(focal_rel_error_clr_all)
+            rel_error_clr_all.extend(nonfocal_rel_error_clr_all)
 
             ax = plt.subplot2grid((len(freq_all), len(amp_all)), (freq_idx, amp_idx), colspan=1)
+            ax_all.append(ax)
 
-            ax.plot(simga_all, rel_error_rel_all, c='#87CEEB', lw=2, label='Relative')
-            ax.plot(simga_all, rel_error_clr_all, c='#FF6347', lw=2, label='CLR')
-
-            print(rel_error_rel_all[:4], rel_error_clr_all[:4])
+            ax.plot(simga_all, focal_rel_error_clr_all, c='#87CEEB', lw=2, label='Oscillating')
+            ax.plot(simga_all, nonfocal_rel_error_clr_all, c='#FF6347', lw=2, label='Non-oscillating')
 
             #ax.set_title('Freq. = %.3f, Amp. = %.3f' % (freq, amp), fontsize=12)
             #ax.set_xscale('log', basex=10)
@@ -1190,19 +1323,27 @@ def plot_compare_clr_to_true_abundance_oscillating():
             ax.xaxis.set_tick_params(labelsize=6)
             ax.yaxis.set_tick_params(labelsize=6)
 
+            #ax.set_ylim([-0.05, ])
+
             if freq_idx + amp_idx == 0:
-                ax.legend(loc='upper left', fontsize=8)
+                ax.legend(loc='upper right', fontsize=8)
 
             if freq_idx == 0:
-                ax.set_title('Amp. = %.3f' % amp, fontsize=10)
+                ax.set_title(r'$A_{i} = $' +  ' %.3f' % amp, fontsize=14)
 
-            if freq_idx == len(freq_all) - 1:
-                ax.set_xlabel("True " + r'$\sigma$', fontsize=8)                           
+            #if freq_idx == len(freq_all) - 1:
+            #   # ax.set_xlabel("True " + r'$\sigma$', fontsize=14)                     
 
             if amp_idx == 0:
-                ax.set_ylabel("Mean rel. error of inferred " + r'$\sigma$', fontsize=6) 
-                ax.text(-0.5, 0.5, 'Freq. = %.3f' % freq, fontsize=10, ha='center', va='center', rotation=90, transform=ax.transAxes)
-
+                #ax.set_ylabel("Mean rel. error of inferred " + r'$\sigma$', fontsize=6) 
+                #ax.text(-0.5, 0.5, 'Freq. = %.3f' % freq, fontsize=10, ha='center', va='center', rotation=90, transform=ax.transAxes)
+                
+                if freq == 0:
+                    tau = r'$\infty$'
+                else:
+                    tau = '%.0f' % (2*numpy.pi/freq)
+                
+                ax.set_ylabel(r'$\tau_{i}^{\mathrm{env}} = $' + ' ' + tau, fontsize=14)
 
 
             #if amp_idx == 0:
@@ -1211,17 +1352,21 @@ def plot_compare_clr_to_true_abundance_oscillating():
 
             #else:
             #    y_label = "Mean rel. error of inferred " + r'$\sigma$'
-
-            
-
-
             #ax.text(0.24, 0.8, r'$\rho^{2} = $' + str(round(rho**2, 3)), fontsize=15, ha='center', va='center', transform=ax.transAxes)
+    
+    
+    fig.text(0.51, 0.1, "True " + r'$\sigma$', fontsize=20, ha='center', va='center')
+    fig.text(0.05, 0.5, "Mean relative  error of inferred " + r'$\sigma$', fontsize=20, ha='center', va='center', rotation=90)
+
+    
+    for ax in ax_all:
+        ax.set_xlim([0, max(simga_all)])
+        ax.set_ylim([-0.05, max(rel_error_clr_all)])
 
 
-
-    fig.subplots_adjust(hspace=0.35,wspace=0.4)
-    fig_name = "%scompare_clr_to_true_abundance_oscillating.png" % config.analysis_directory
-    fig.savefig(fig_name, format='png', bbox_inches = "tight", pad_inches = 0.4, dpi = 600)
+    fig.subplots_adjust(hspace=0.15,wspace=0.2)
+    fig_name = "%scompare_sigma_clr_to_true_abundance_oscillating.png" % config.analysis_directory
+    fig.savefig(fig_name, format='png', bbox_inches = "tight", pad_inches = 0.1, dpi = 600)
     plt.close()
 
 
@@ -1359,10 +1504,11 @@ if __name__ == "__main__":
     n_sites = len(days)
     S = 1000
     N = 100000
+    mu = 0.001
 
     #plot_oscillation_artifact_simulation()
 
-    #oscillation_artifact_simulation(0.001, s, S, N, 'exp', [0.1, 0.3, 0.5], n_sites, focal_amp_all=[0, 0.5, 1, 1.5, 2], n_iter=10, clr_all_otus=False)
+    #oscillation_artifact_simulation(mu, s, S, N, 'exp', [0.1, 0.3, 0.5], n_sites, focal_amp_all=[0, 0.5, 1, 1.5, 2], n_iter=10, clr_all_otus=False)
 
     #data_collapse_simulation(0.001, s, S, N, 'exp', 1, n_sites, n_iter=1)
 
@@ -1379,8 +1525,7 @@ if __name__ == "__main__":
     #plot_compare_clr_to_true_abundance()
 
 
-    #make_compare_clr_to_true_abundance_oscillating_dict()
-
+    #make_compare_sigma_clr_to_true_abundance_oscillating_dict(mu, s, S, N, n_sites, n_iter=10)
     plot_compare_clr_to_true_abundance_oscillating()
     
     #plot_oscillation_artifact_simulation()

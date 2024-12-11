@@ -76,7 +76,6 @@ for data_type_idx, data_type in enumerate(['DNA', 'RNA']):
     ax_timeseries.yaxis.set_tick_params(labelsize=12)
 
     if data_type_idx == 1:
-
         ax_timeseries.set_xlabel("Time (days)", fontsize=18)
 
     #ax_logfold.plot(days[:-1], logfold, lw=1, alpha=1, color=utils.dna_rna_color_dict[data_type], zorder=2)
@@ -108,6 +107,10 @@ for data_type_idx, data_type in enumerate(['DNA', 'RNA']):
 
     #if data_type_idx == 0:
     #    ax_logfold.legend(loc='upper left', fontsize=10)
+
+    if data_type_idx == 0:
+        ax_timeseries.set_title('OTU 1 ('+ r'$\mathit{Anabaena}$' + ' sp.)', color='k', fontsize=18)
+
 
 
 

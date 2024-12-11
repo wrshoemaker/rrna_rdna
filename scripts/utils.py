@@ -51,6 +51,16 @@ env_variable_no_unit_label_dict = {'water_temp': 'Water temperature', 'specific_
                             'secchi_depth': 'Secchi depth', 'ph':'pH', 'air_temperature': 'Air temperature',  'total_nitrogen':'Total nitrogen', 'total_phosphorus':'Total phosphorus', 'doc': 'Dissolved organic carbon'}
 
 
+
+env_variable_no_unit_label_split_dict = {'water_temp': 'Water\ntemp.', 'specific_conductivity': 'Specific\nconductivity', 
+                            'dissolved_oxygen': 'Dissolved\noxygen', 'salinity': 'Salinity',
+                            'secchi_depth': 'Secchi\ndepth', 'ph':'pH', 'air_temperature': 'Air\ntemperature',  'total_nitrogen':'Total N', 'total_phosphorus':'Total C', 'doc': 'Dissolved\norganic C'}
+
+
+#otu_producer_status = {'Otu000001': 'phototroph': ''}
+
+
+
 def get_p_value_latex_label_dict(p_value):
 
     if p_value <= 0.05:

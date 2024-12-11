@@ -68,8 +68,8 @@ ax.set_xticklabels(major_labels, minor=False, fontsize=7)
 ax.yaxis.set_tick_params(labelsize=7)
 
 ax.legend(loc='upper left', fontsize=10)
-
-
+#ax.set_title('OTU 1', color='k', fontsize=14)
+ax.set_title('OTU 1 ('+ r'$\mathit{Anabaena}$' + ' sp.)', color='k', fontsize=14)
 
 fig.subplots_adjust(hspace=0.35, wspace=0.25)
 fig_name = "%sfig2_1.png" % config.analysis_directory
@@ -112,6 +112,7 @@ for data_type_idx, data_type in enumerate(['DNA', 'RNA']):
     ax_data_rescaled.set_ylabel('Rescaled\nCLR-transformed abund.', fontsize=10)
 
     rescaled_days_all = []
+    rescaled_clr_afd_all = []
 
     for otu_i_idx in range(len(param_dict['data']['days'][data_type])):
 
@@ -129,14 +130,39 @@ for data_type_idx, data_type in enumerate(['DNA', 'RNA']):
         rescaled_days_i = days_i*freq_mle_i + phase_mle_i
         rescaled_clr_afd_i = (clr_afd_i - numpy.log(param_mean_mle_i))/amp_mle_i
 
-        ax_data_rescaled.plot(rescaled_days_i, rescaled_clr_afd_i, lw=0.6, alpha=0.6, color=utils.dna_rna_color_dict[data_type])#, zorder=5-sine_param_combo_idx)
+        ax_data_rescaled.plot(rescaled_days_i, rescaled_clr_afd_i, lw=0.6, alpha=0.3, color=utils.dna_rna_color_dict[data_type])#, zorder=5-sine_param_combo_idx)
         ax_data_rescaled.scatter(rescaled_days_i, rescaled_clr_afd_i, s=1, alpha=0.4, color=utils.dna_rna_color_dict[data_type], zorder=2)
 
         rescaled_days_all.extend(rescaled_days_i.tolist())
+        rescaled_clr_afd_all.extend(rescaled_clr_afd_i.tolist())
 
+
+    # bin mean
+    rescaled_days_all = numpy.asarray(rescaled_days_all)
+    rescaled_clr_afd_all = numpy.asarray(rescaled_clr_afd_all)
+
+    idx_to_keep = rescaled_days_all <= 50
+    rescaled_days_all = rescaled_days_all[idx_to_keep]
+    rescaled_clr_afd_all = rescaled_clr_afd_all[idx_to_keep]
+
+    hist_all, bin_edges_all = numpy.histogram(rescaled_days_all, density=True, bins=30)
+    bins_mean_all = [0.5 * (bin_edges_all[i] + bin_edges_all[i+1]) for i in range(0, len(bin_edges_all)-1 )]
+    bins_mean_all_to_keep = []
+    bins_occupancies = []
+    for i in range(0, len(bin_edges_all)-1 ):
+        all_predicted_occupancies_log10_i = rescaled_clr_afd_all[ (rescaled_days_all>=bin_edges_all[i]) & (rescaled_days_all<bin_edges_all[i+1])]
+        bins_mean_all_to_keep.append(bins_mean_all[i])
+        bins_occupancies.append(numpy.mean(all_predicted_occupancies_log10_i))
+
+    bins_mean_all_to_keep = numpy.asarray(bins_mean_all_to_keep)
+    bins_occupancies = numpy.asarray(bins_occupancies)
+
+    bins_mean_all_to_keep_no_nan = bins_mean_all_to_keep[(~numpy.isnan(bins_mean_all_to_keep)) & (~numpy.isnan(bins_occupancies))]
+    bins_occupancies_no_nan = bins_occupancies[(~numpy.isnan(bins_mean_all_to_keep)) & (~numpy.isnan(bins_occupancies))]
+    ax_data_rescaled.scatter(bins_mean_all_to_keep_no_nan, bins_occupancies_no_nan, s=17, marker="x", c='k', zorder=4, label='Mean over OTUs')
 
     rescaled_days_range = numpy.linspace(min(rescaled_days_all), max(rescaled_days_all), 1000)
-    ax_data_rescaled.plot(rescaled_days_range, numpy.sin(rescaled_days_range), lw=2, c='k', label='Sine function (not a fit)')
+    ax_data_rescaled.plot(rescaled_days_range, numpy.sin(rescaled_days_range), lw=1.5, c='k', label='Sine function (not a fit)', zorder=3)
 
     ax_data_rescaled.set_xlim([0, 50])
 
