@@ -70,8 +70,8 @@ for param_idx, param in enumerate(['amp', 'freq', 'phase']):
 
             phase_ticks = [0, 0.5*numpy.pi, numpy.pi, 1.5*numpy.pi, 2*numpy.pi]
             phase_tick_labels = [r'$0$', r'$\frac{\pi}{2}$', r'$\pi$', r'$\frac{3\pi}{2}$', r'$2\pi$']
-            ax.set_xticks(phase_ticks)
-            ax.set_xticklabels(phase_tick_labels)
+            ax.set_yticks(phase_ticks)
+            ax.set_yticklabels(phase_tick_labels)
         
         ax.xaxis.set_tick_params(labelsize=7)
         ax.yaxis.set_tick_params(labelsize=7)

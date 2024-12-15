@@ -7,6 +7,9 @@ import utils
 import matplotlib.pyplot as plt
 from matplotlib import cm, colors
 from mpl_toolkits.axes_grid1.inset_locator import inset_axes
+import matplotlib.gridspec as gridspec
+
+from statsmodels.stats.multitest import fdrcorrection
 
 from scipy import stats, signal
 # numdifftools also installed
@@ -55,96 +58,111 @@ def build_gam_coeff_dict():
 param_dict = pickle.load(open(sine_parameter_utils.param_otu_mle_dict_path, "rb"))
 gam_coeff_dict = build_gam_coeff_dict()
 
-sine_param_all = []
-coeff_all = []
-pvalue_all = []
+
 
 sine_param_to_plot = 'freq_mle'
-env_variable_to_plot = 'doc'
-data_type_to_plot = 'RNA'
-for otu_label_idx, otu_label in enumerate(param_dict['otu_labels']):
-
-    if otu_label_idx == 0:
-        continue
-
-    param_otu = gam_coeff_dict[otu_label][data_type_to_plot.lower()][env_variable_to_plot]['coeff']
-
-    sine_param_all.append(param_dict[sine_param_to_plot][data_type_to_plot][otu_label_idx])
-    coeff_all.append(param_otu)
-    pvalue_all.append(gam_coeff_dict[otu_label][data_type_to_plot.lower()][env_variable_to_plot]['p_value'])
 
 
-focal_otu_sine_param = param_dict[sine_param_to_plot][data_type_to_plot][0]
-focal_otu_coeff = gam_coeff_dict[param_dict['otu_labels'][0]][data_type_to_plot.lower()][env_variable_to_plot]['coeff']
+fig = plt.figure(figsize = (8.5, 8)) #
+fig.subplots_adjust(bottom= 0.15)
+gs = gridspec.GridSpec(nrows=2, ncols=2)
+
+for env_variable_idx, env_variable in enumerate(['doc', 'ph']):
+
+    for data_type_idx, data_type in enumerate(['DNA', 'RNA']):
+
+        sine_param_all = []
+        coeff_all = []
+        pvalue_all = []
+
+        for otu_label_idx, otu_label in enumerate(param_dict['otu_labels']):
+
+            if otu_label_idx == 0:
+                continue
+
+            param_otu = gam_coeff_dict[otu_label][data_type.lower()][env_variable]['coeff']
+
+            sine_param_all.append(param_dict[sine_param_to_plot][data_type][otu_label_idx])
+            coeff_all.append(param_otu)
+            pvalue_all.append(gam_coeff_dict[otu_label][data_type.lower()][env_variable]['p_value'])
 
 
-sine_param_all = numpy.asarray(sine_param_all)
-coeff_all = numpy.asarray(coeff_all)
-pvalue_all = numpy.asarray(pvalue_all)
+        focal_otu_sine_param = param_dict[sine_param_to_plot][data_type][0]
+        focal_otu_coeff = gam_coeff_dict[param_dict['otu_labels'][0]][data_type.lower()][env_variable]['coeff']
 
-if 'freq' in sine_param_to_plot:
+        sine_param_all = numpy.asarray(sine_param_all)
+        coeff_all = numpy.asarray(coeff_all)
+        pvalue_all = numpy.asarray(pvalue_all)
+        
+        # absolute value
 
-    sine_param_all = 2*numpy.pi/sine_param_all
-    focal_otu_sine_param = 2*numpy.pi/focal_otu_sine_param
+        if 'freq' in sine_param_to_plot:
 
-
-
-
-def bhp(p_values):
-	rank = stats.rankdata(p_values,method='max')
-	nbp = len(p_values)
-	return [min(p_values[i]*nbp/rank[i],1) for i in range(nbp)]
+            sine_param_all = 2*numpy.pi/sine_param_all
+            focal_otu_sine_param = 2*numpy.pi/focal_otu_sine_param
 
 
-from statsmodels.stats.multitest import fdrcorrection
-#from statsmodels.stats.multitest import multipletests
-
-pvalue_all = fdrcorrection(pvalue_all, alpha=0.05, method='indep', is_sorted=False)[1]
-
-
-
-
-fig, ax = plt.subplots(figsize=(4,4))
-
-ax.scatter(focal_otu_sine_param, focal_otu_coeff, alpha=1, s=30, color='#FF6347', label='OTU 1 (phototroph)')
-
-pvalue_significant_idx = (pvalue_all <= 0.05)
-
-for sig_bool_ in [True, False]:
-
-    # skip if there are no significant slopes...
-    if sum(pvalue_significant_idx==sig_bool_) == 0:
-        continue
-
-    if sig_bool_ == True:
-        sig_bool_label = 'significant'
-        color = '#87CEEB'
-    else:
-        sig_bool_label = 'nonsignificant'
-        color = 'k'
-
-
-    ax.scatter(sine_param_all[pvalue_significant_idx==sig_bool_], coeff_all[pvalue_significant_idx==sig_bool_], alpha=0.8, s=20, color=color, label='Other OTUs (%s)' % sig_bool_label)
+        coeff_all = numpy.absolute(coeff_all)
+        focal_otu_coeff = abs(focal_otu_coeff)
 
 
 
+        pvalue_all = fdrcorrection(pvalue_all, alpha=0.05, method='indep', is_sorted=False)[1]
 
-ax.axhline(y=0, lw=2.5, ls=':', color='k', zorder=1)
-#min_x, ma
+        ax = fig.add_subplot(gs[env_variable_idx, data_type_idx])
+        ax.scatter(focal_otu_sine_param, focal_otu_coeff, alpha=1, s=30, color='k', label='OTU 1 (phototroph)')
+
+        pvalue_significant_idx = (pvalue_all <= 0.05)
+
+        edgecolor = utils.dna_rna_color_dict[data_type]
+
+        for sig_bool_ in [True, False]:
+
+            # skip if there are no significant slopes...
+            if sum(pvalue_significant_idx==sig_bool_) == 0:
+                continue
+
+            if sig_bool_ == True:
+                sig_bool_label = r'$P<0.05$'
+                #color = '#87CEEB'
+                facecolor = utils.dna_rna_color_dict[data_type]
+                
+
+            else:
+                #sig_bool_label = 'nonsignificant'
+                sig_bool_label = r'$P \, \nleq \, 0.05$'
+                #color = 'k'
+                facecolor = 'none'
+                
 
 
-ax.set_xlabel("Oscillation timescale", fontsize=12)
-ax.set_ylabel("GAM coefficient for %s" % env_variable_to_plot, fontsize=12)
-#ax.axvline(x=focal_otu_sine_param, lw=2.5, ls=':', label='OTU1', color='k', zorder=1)
-
-#ax.hlines(y=focal_otu_coeff, xmin=min(), xmax=1.0, color='b')
+            ax.scatter(sine_param_all[pvalue_significant_idx==sig_bool_], coeff_all[pvalue_significant_idx==sig_bool_], alpha=0.8, s=20, edgecolors=edgecolor, facecolors=facecolor, label='Heterotrophic OTUs, %s' % sig_bool_label, zorder=2)
 
 
-ax.legend(loc='upper left', fontsize=6)
+
+        ax.axhline(y=0, lw=2.5, ls=':', color='k', zorder=1)
+        #min_x, ma
 
 
-fig.subplots_adjust(hspace=0.35, wspace=0.25)
-fig_name = "%scompare_otu1_param_%s.png" % (config.analysis_directory, env_variable_to_plot)
+        ax.set_xlabel("Oscillation timescale (days), " + r'$\tau_{i}^{\mathrm{env}}$', fontsize=12)
+        #ax.set_ylabel("GAM coefficient for %s" % env_variable, fontsize=12)
+        ax.set_ylabel("Absolute value of GAM coefficient", fontsize=11)
+        #ax.axvline(x=focal_otu_sine_param, lw=2.5, ls=':', label='OTU1', color='k', zorder=1)
+
+        #ax.hlines(y=focal_otu_coeff, xmin=min(), xmax=1.0, color='b')
+
+        if env_variable_idx == 0:
+            ax.set_title(data_type, fontsize=16)
+
+        if data_type_idx == 0:
+            ax.text(-0.32, 0.5, utils.env_variable_label_dict[env_variable], fontsize=14, ha='center', va='center', rotation=90, transform=ax.transAxes)
+
+        if env_variable_idx + data_type_idx == 0:
+            ax.legend(loc='upper left', fontsize=6)
+
+
+fig.subplots_adjust(hspace=0.3, wspace=0.25)
+fig_name = "%scompare_otu1_param.png" % (config.analysis_directory)
 fig.savefig(fig_name, format='png', bbox_inches = "tight", pad_inches = 0.4, dpi = 600)
 plt.close()
 

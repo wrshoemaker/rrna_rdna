@@ -927,6 +927,10 @@ def mle_sigma(afd):
     beta_estimate = fsolve(sigma_func, beta_init, args=(mean_log_estimate, log_mean_estimate))[0]
     sigma_estimate = 2/(beta_estimate + 1)
 
+    if sigma_estimate >= 2:
+        sigma_estimate = 1.99
+        beta_estimate = (2-sigma_estimate)/sigma_estimate
+
     return beta_estimate, sigma_estimate
 
 

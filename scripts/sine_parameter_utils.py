@@ -185,16 +185,15 @@ def second_rount_optimization(result_brute, fitter):
 
 
 
-def neg_ll_gamma_time_varying(params, days_afd, afd):
-
-    amp = params['amp']
-    freq = params['freq']
-    phase = params['phase']
-    param_mean = params['param_mean']
-
-    # freq = 2*pi/tau
 
 
+
+def ll_gamma(afd, mean_, beta):
+
+    # minimize the negative log-likelihood 
+    ll = (beta-1)*sum(numpy.log(afd)) - (beta/mean_)*sum(afd) - len(afd)*beta*numpy.log(mean_/beta) - len(afd)*loggamma(beta)
+
+    return -1*ll
 
 
 
@@ -611,6 +610,7 @@ def make_param_mle_otu_dict(min_occupancy=1):
 
             # get beta estimate
             beta_estimate, sigma_estimate = simulation_utils.mle_sigma(afd_clean)
+            #print(beta_estimate)
             result_brute, fitter = grid_search_mle_sine_wave(days_afd_clean, afd_clean, params, beta_estimate)
             best_params_brute = result_brute.params
 
@@ -633,8 +633,8 @@ def make_param_mle_otu_dict(min_occupancy=1):
                 #if p == 'amp':
                 #    print(best_params_mle[p].value)
                 
-                if p == 'freq':
-                    print(2*numpy.pi/best_params_mle[p].value)
+                #if p == 'freq':
+                #    print(2*numpy.pi/best_params_mle[p].value)
 
 
             param_dict['data']['days'][data_type].append(days_afd.tolist())
@@ -1749,7 +1749,7 @@ if __name__ == "__main__":
     print("Running...")
 
     # Infer parameters
-    #make_param_mle_otu_dict()
+    make_param_mle_otu_dict()
     #make_param_env_dict()
     
     #plot_time_vs_abundance_clr(data_type='RNA')
@@ -1767,5 +1767,5 @@ if __name__ == "__main__":
     #print(2*numpy.pi/freq_leastsq)
 
 
-    make_flat_file_for_gam()
+    #make_flat_file_for_gam()
 
