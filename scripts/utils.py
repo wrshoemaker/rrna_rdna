@@ -8,9 +8,11 @@ import sympy
 from scipy.stats import gmean
 
 from matplotlib import cm
-
-
 from collections import Counter
+
+from statsmodels.stats.multitest import fdrcorrection
+
+numpy.random.seed(123456789)
 
 
 
@@ -1157,6 +1159,81 @@ def calculate_autocorrelation(array, time, min_n_obs=10):
 
        
     return rho_all, delta_t_all
+
+
+
+def corr_permute_test(x, y, n_iter=10000):
+
+    x = numpy.asarray(x)
+    y = numpy.asarray(y)
+
+    rho_obs = (numpy.corrcoef(x, y)[0,1])**2
+
+    rho_null_all = []
+
+    for i in range(n_iter):
+
+        x_null = numpy.random.permutation(x)
+        y_null = numpy.random.permutation(y)
+
+        rho_null_all.append((numpy.corrcoef(x_null, y_null)[0,1])**2)
+
+    rho_null_all = numpy.asarray(rho_null_all)
+
+    p_value = sum(rho_null_all > rho_obs)/n_iter
+
+    return rho_obs, p_value
+
+
+
+
+def build_gam_coeff_dict():
+
+    gam_coeff_dict = {}
+
+    gam_env_analysis_path = '%sgam_env_analysis.csv' % config.data_directory
+
+    gam_env_analysis_file = open(gam_env_analysis_path, 'r')
+    header = gam_env_analysis_file.readline()
+    env_variables = header.strip().split(',')[2:]
+
+    for line in gam_env_analysis_file:
+
+        line = line.strip().split(',')
+        otu = line[0].split('_', 1)[0]
+        data_type = line[0].split('_', 1)[1]
+        
+        if otu not in gam_coeff_dict:
+            gam_coeff_dict[otu] = {}
+
+            for d in ['dna', 'rna', 'rna_dna']:
+                gam_coeff_dict[otu][d] = {}
+
+                for e in env_variables:
+                    gam_coeff_dict[otu][d][e] = {}
+
+        p_value_or_coeff = line[1]
+
+        for e_idx, e in enumerate(env_variables):
+            gam_coeff_dict[otu][data_type][e][p_value_or_coeff] = float(line[e_idx+2])
+
+    gam_env_analysis_file.close()
+    
+    otu_list = list(gam_coeff_dict.keys())
+    for data_type in ['rna', 'dna', 'rna_dna']:
+
+        for e_idx, e in enumerate(env_variables):
+
+            p_value = numpy.asarray([gam_coeff_dict[k][data_type][e]['p_value'] for k in otu_list])
+            p_value_fdr = fdrcorrection(p_value, alpha=0.05, method='indep', is_sorted=False)[1]
+            for k_idx, k in enumerate(otu_list):
+                gam_coeff_dict[k][data_type][e]['p_value_fdr'] = p_value_fdr[k_idx]
+
+
+    return gam_coeff_dict
+    
+
+
 
 
 

@@ -34,6 +34,8 @@ param_label_no_days_dict = {'amp': 'Amplitude', 'freq': 'Oscillation timescale',
 param_label_dict_latex = {'amp': r'$A$', 'freq': r'$\tau^{\mathrm{env}}$', 'phase': r'$\psi$'}
 
 
+env_variable_all_nested = [['water_temp', 'specific_conductivity', 'dissolved_oxygen'], ['salinity', 'secchi_depth', 'ph'], ['total_nitrogen', 'total_phosphorus', 'doc']]
+
 
 
 metadata_dict = utils.build_metadata_dict()
@@ -831,7 +833,6 @@ def plot_params(log10_status=False, clr_status=False, method='leastsq'):
 
         ax_dist.set_xlabel(param_label_dict[param_label], fontsize=10)
         ax_dist.set_ylabel("Probability density", fontsize=10)
-
 
         param_dna = numpy.asarray(param_dict[param_label]['DNA'])
         param_rna = numpy.asarray(param_dict[param_label]['RNA'])
@@ -1647,10 +1648,7 @@ def plot_time_vs_clr_ratio(method='mle'):
 
 def plot_time_vs_env():
 
-    param_env_dict = load_param_env_dict()
-
-    env_variable_all_nested = [['water_temp', 'specific_conductivity', 'dissolved_oxygen'], ['salinity', 'secchi_depth', 'ph'], ['total_nitrogen', 'total_phosphorus', 'doc']]
-    
+    param_env_dict = load_param_env_dict()    
     
     fig = plt.figure(figsize = (9, 9))
     fig.subplots_adjust(bottom= 0.15)
@@ -1675,6 +1673,8 @@ def plot_time_vs_env():
             #ax.tick_params(axis='both', labelsize=7)
 
             days_range = numpy.linspace(min(days_clean), max(days_clean), 1000)
+
+            print(env_variable_j, numpy.pi*2/param_env_dict['freq_leastsq'][env_variable_dict_idx])
 
             sine_prediction = param_env_dict['amp_leastsq'][env_variable_dict_idx] * numpy.sin(param_env_dict['freq_leastsq'][env_variable_dict_idx] * days_range + param_env_dict['phase_leastsq'][env_variable_dict_idx]) + param_env_dict['param_mean_leastsq'][env_variable_dict_idx]
             ax.plot(days_range, sine_prediction, lw=2, ls='-', alpha=0.5, c='k', zorder=1, label='Sine function')
@@ -1749,10 +1749,10 @@ if __name__ == "__main__":
     print("Running...")
 
     # Infer parameters
-    make_param_mle_otu_dict()
+    #make_param_mle_otu_dict()
     #make_param_env_dict()
     
-    #plot_time_vs_abundance_clr(data_type='RNA')
+    plot_time_vs_abundance_clr(data_type='RNA')
     #plot_time_vs_abundance_clr(data_type='DNA')
 
     # plot includes sine difference

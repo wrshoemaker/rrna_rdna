@@ -29,7 +29,7 @@ colnames(df_nonans_t)
 
 otu_afd_all <- grep('Otu', colnames(df_nonans_t), value=TRUE)
 
-env_variables <- c('otu_afd', 'p_value_or_coeff',  'water_temp', 'total_nitrogen', 'total_phosphorus', 'doc', 'secchi_depth', 'ph', 'dissolved_oxygen')
+env_variables <- c('otu_afd', 'p_value_or_coeff',  'water_temp', 'specific_conductivity', 'salinity',  'total_nitrogen', 'total_phosphorus', 'doc', 'secchi_depth', 'ph', 'dissolved_oxygen')
 #sd_env_var <- c('std_dev', sd(df_nonans_t$water_temp), sd(df_nonans_t$total_nitrogen), sd(df_nonans_t$total_phosphorus), sd(df_nonans_t$doc), sd(df_nonans_t$secchi_depth), sd(df_nonans_t$ph), sd(df_nonans_t$dissolved_oxygen))
 
 # generate empty matrix
@@ -41,11 +41,11 @@ matrix[1,] <- env_variables
 for (i in 1:length(otu_afd_all)) { 
   
   otu_afd_i <- otu_afd_all[i]
-  model_i <- as.formula(paste(otu_afd_i, " ~ water_temp + total_nitrogen + total_phosphorus + doc + secchi_depth + ph + dissolved_oxygen"))
+  model_i <- as.formula(paste(otu_afd_i, " ~ water_temp + specific_conductivity + salinity + total_nitrogen + total_phosphorus + doc + secchi_depth + ph + dissolved_oxygen"))
   gam_env_i <- gam(formula=model_i, data=df_nonans_t)
   
-  coef_gam_i <- as.numeric(gam_env_i$coefficients[2:8])
-  p_value_i <- as.numeric(summary(gam_env_i)$p.pv)[2:8]
+  coef_gam_i <- as.numeric(gam_env_i$coefficients[2:10])
+  p_value_i <- as.numeric(summary(gam_env_i)$p.pv)[2:10]
   
   coef_gam_out_i <- c(otu_afd_i, 'coeff',  coef_gam_i)
   p_value_out_i <- c(otu_afd_i, 'p_value',  p_value_i)
