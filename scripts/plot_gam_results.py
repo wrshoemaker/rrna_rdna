@@ -29,6 +29,9 @@ def plot_gam_stat(stat='p_value_fdr'):
 
     fig = plt.figure(figsize = (9, 9))
     fig.subplots_adjust(bottom= 0.15)
+    #fig.suptitle('No random effects', fontsize=16)
+    fig.suptitle('Time as a random effect', fontsize=16)
+
 
     for nested_i_idx, nested_i in enumerate(env_variable_all_nested):
 
@@ -36,7 +39,7 @@ def plot_gam_stat(stat='p_value_fdr'):
 
             ax = plt.subplot2grid((3, 3), (nested_i_idx, env_variable_j_idx), colspan=1)
 
-            for data_type in ['dna', 'rna']:
+            for data_type in ['dna', 'rna', 'rna_dna']:
 
                 otu_stat = numpy.asarray([gam_coeff_dict[k][data_type][env_variable_j][stat] for k in otu_list])
 
@@ -48,7 +51,8 @@ def plot_gam_stat(stat='p_value_fdr'):
                 # number significant
                 n_significant = sum(otu_stat > -1*numpy.log10(0.05))
 
-                print(env_variable_j, data_type, n_significant)
+                #print(env_variable_j, data_type, n_significant)
+
 
                 ax.scatter(otu_stat, y_axis_idx, alpha=0.7, s=30, color=utils.dna_rna_color_dict[data_type.upper()], label=data_type.upper())
 
@@ -62,7 +66,7 @@ def plot_gam_stat(stat='p_value_fdr'):
             
             ax.axvline(x=-1*numpy.log10(0.05), lw=2.5, ls=':', label=r'$P = 0.05$', color='k', zorder=1)
             ax.set_title(utils.env_variable_label_dict[env_variable_j], fontsize=10)
-            ax.set_xlim([-0.1,9.1])
+            ax.set_xlim([-0.1,9.5])
 
             if (env_variable_j_idx == 0) and (nested_i_idx == 0):
                 ax.legend(loc='lower right', fontsize=6)

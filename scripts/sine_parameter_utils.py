@@ -3,6 +3,7 @@ import sys
 import copy
 import numpy
 import utils
+import random
 import matplotlib.pyplot as plt
 from matplotlib import cm, colors
 from scipy import stats
@@ -16,6 +17,7 @@ import simulation_utils
 import pickle
 
 numpy.random.seed(123456789)
+random.seed(123456789)
 
 
 param_otu_dict_path = config.data_directory + 'param_otu_%s%s%sdict.pickle'
@@ -48,6 +50,7 @@ s_by_s_dna, s_by_s_rna, otu_labels_subset = utils.subset_s_by_s_occupancy(s_by_s
 # get days
 sample_type = numpy.asarray([metadata_dict[s]['sample_type'] for s in samples])
 days = numpy.asarray([metadata_dict[s]['day'] for s in samples[(sample_type=='RNA')]])
+day_of_year = numpy.asarray([metadata_dict[s]['day_of_year'] for s in samples[(sample_type=='RNA')]])
 
 
 def calculate_sine_wave(t, amp, freq, phase, param_mean):
@@ -1674,7 +1677,7 @@ def plot_time_vs_env():
 
             days_range = numpy.linspace(min(days_clean), max(days_clean), 1000)
 
-            print(env_variable_j, numpy.pi*2/param_env_dict['freq_leastsq'][env_variable_dict_idx])
+            #print(env_variable_j, numpy.pi*2/param_env_dict['freq_leastsq'][env_variable_dict_idx])
 
             sine_prediction = param_env_dict['amp_leastsq'][env_variable_dict_idx] * numpy.sin(param_env_dict['freq_leastsq'][env_variable_dict_idx] * days_range + param_env_dict['phase_leastsq'][env_variable_dict_idx]) + param_env_dict['param_mean_leastsq'][env_variable_dict_idx]
             ax.plot(days_range, sine_prediction, lw=2, ls='-', alpha=0.5, c='k', zorder=1, label='Sine function')
@@ -1709,12 +1712,19 @@ def make_flat_file_for_gam():
     #otu_idx = 0
     #otu_idx = param_otu_dict['otu_labels'].index('Otu000046')
 
-    days = [str(d) for d in param_otu_dict['data']['days']['DNA'][0]]
-    
+    days_gam = [str(d) for d in param_otu_dict['data']['days']['DNA'][0]]
+    #days = [str(d) for d in param_otu_dict['data']['days']['DNA'][0]]
+
+    #days = numpy.asarray([metadata_dict[s]['day'] for s in samples[(sample_type=='RNA')]])
+
+    day_of_year_gam = [str(day_of_year[numpy.where(days==d)[0][0]]) for d in days]
+    #day_of_year = numpy.asarray([metadata_dict[s]['day_of_year'] for s in samples[(sample_type=='RNA')]])
+
     file_ = open('%sdata_for_gam.csv' % config.data_directory, 'w')
-    sample_idx = [str(d) for d in list(range(len(days)))]
+    sample_idx = [str(d) for d in list(range(len(days_gam)))]
     file_.write('sample_number,' + ",".join(sample_idx) + '\n')
-    file_.write('days,' + ",".join(days) + '\n')
+    file_.write('days,' + ",".join(days_gam) + '\n')
+    file_.write('day_of_year,' + ",".join(day_of_year_gam) + '\n')
 
     for otu_i_idx in range(len(param_otu_dict['otu_labels'])):
     
@@ -1740,6 +1750,58 @@ def make_flat_file_for_gam():
     file_.close()
 
 
+def plot_summary_env_sine_params():
+
+    fig = plt.figure(figsize = (12, 4))
+    fig.subplots_adjust(bottom= 0.15)
+
+    ax_amp = plt.subplot2grid((1, 3), (0, 0), colspan=1)
+    ax_time = plt.subplot2grid((1, 3), (0, 1), colspan=1)
+    ax_phase = plt.subplot2grid((1, 3), (0, 2), colspan=1)
+
+    param_env_dict = load_param_env_dict()   
+
+    #env_variable_all = utils.env_variable_all
+    #env_variable_all.pop('air_temperature')
+
+    env_variables_labels = [utils.env_variable_no_unit_label_dict[e] for e in param_env_dict['env_variables_labels']] 
+    y_axis_idx = numpy.asarray(range(len(env_variables_labels)))
+
+    time_leastsq = (2*numpy.pi)/(numpy.asarray(param_env_dict['freq_leastsq']))
+
+
+    ax_amp.scatter(param_env_dict['amp_leastsq'], y_axis_idx, alpha=0.7, s=30, color='k')
+    ax_time.scatter(time_leastsq, y_axis_idx, alpha=0.7, s=30, color='k')
+    ax_phase.scatter(param_env_dict['phase_leastsq'], y_axis_idx, alpha=0.7, s=30, color='k')
+
+    params_all = ['amp', 'freq', 'phase']
+
+    ax_all = [ax_amp, ax_time, ax_phase]
+    for ax_idx, ax_ in enumerate(ax_all):
+        ax_.set_yticks(y_axis_idx)
+        ax_.set_yticklabels(env_variables_labels, rotation=45, fontsize=6)
+        ax_.set_xlabel(param_label_dict[params_all[ax_idx]] + ', ' + param_label_dict_latex[params_all[ax_idx]], fontsize=12)
+
+    ax_time.axvline(x=365, ls=':', lw=2, c='k', label='Yearly')
+    ax_time.legend(loc='lower right', fontsize=6)
+
+    phase_ticks = [0, 0.5*numpy.pi, numpy.pi, 1.5*numpy.pi, 2*numpy.pi]
+    phase_tick_labels = [r'$0$', r'$\frac{\pi}{2}$', r'$\pi$', r'$\frac{3\pi}{2}$', r'$2\pi$']
+    ax_phase.set_xticks(phase_ticks)
+    ax_phase.set_xticklabels(phase_tick_labels)
+
+
+    ax_phase.axvline(x=1.3587641577213279*numpy.pi, ls=':', lw=2, c='k', label='Phototroph OTU phase')
+    ax_phase.legend(loc='lower right', fontsize=6)
+
+    
+
+    
+    fig.subplots_adjust(hspace=0.35, wspace=0.40)
+    fig_name = "%senv_sine_params.png" % (config.analysis_directory)
+    fig.savefig(fig_name, format='png', bbox_inches = "tight", pad_inches = 0.4, dpi = 600)
+    plt.close()
+
 
 
 
@@ -1749,19 +1811,40 @@ if __name__ == "__main__":
     print("Running...")
 
     # Infer parameters
-    #make_param_mle_otu_dict()
+    make_param_mle_otu_dict()
     #make_param_env_dict()
     
-    plot_time_vs_abundance_clr(data_type='RNA')
+    #plot_time_vs_abundance_clr(data_type='RNA')
     #plot_time_vs_abundance_clr(data_type='DNA')
 
     # plot includes sine difference
     #plot_time_vs_clr_ratio()
 
     #plot_time_vs_env()
-
+    #plot_summary_env_sine_params()
 
     #dict_ =  load_param_env_dict()
+    #doc_idx = dict_['env_variables_labels'].index('doc')
+    ##temp_idx = dict_['env_variables_labels'].index('water_temp')
+    #nitrogen_idx = dict_['env_variables_labels'].index('total_nitrogen')
+
+    #timescale_doc = 2*numpy.pi/dict_['freq_leastsq'][doc_idx]
+    #timescale_temp = 2*numpy.pi/dict_['freq_leastsq'][temp_idx]
+    #timescale_nitrogen = 2*numpy.pi/dict_['freq_leastsq'][nitrogen_idx]
+
+    #phase_doc = dict_['phase_leastsq'][doc_idx]
+    #phase_temp = dict_['phase_leastsq'][temp_idx]
+    #phase_nitrogen = dict_['phase_leastsq'][nitrogen_idx]
+
+
+    #make_flat_file_for_gam()
+    
+
+
+    #print(timescale_doc, timescale_temp, timescale_nitrogen)
+    #print(phase_doc, phase_temp, phase_nitrogen)
+
+
 
     #freq_leastsq = numpy.asarray(dict_['freq_leastsq'])
     #print(2*numpy.pi/freq_leastsq)

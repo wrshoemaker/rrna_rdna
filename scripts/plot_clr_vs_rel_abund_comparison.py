@@ -53,8 +53,8 @@ metadata_dict = utils.build_metadata_dict()
 minor_days, major_days, major_labels = utils.get_seasonal_tick_labels()
 
 
-rel_color = '#FF6347'
-clr_color = '#87CEEB'
+rel_color = utils.transformation_color_dict['rel']
+clr_color = utils.transformation_color_dict['clr']
 
 # set up plot...
 fig = plt.figure(figsize = (8.5, 16))
@@ -309,7 +309,7 @@ ax_sim_focal_param.set_ylabel("Inferred amplitude of oscillating OTU", fontsize=
 ax_sim_nonfocal_param.set_xlabel("True amplitude of oscillating OTU", fontsize=12)
 ax_sim_nonfocal_param.set_ylabel("Inferred amplitude of non-oscillating OTU", fontsize=11.5)
 
-ax_sim_focal_reads_clr.set_ylabel("CLR-transformed abundance", fontsize=11, color=clr_color, fontweight='bold')
+#ax_sim_focal_reads_clr.set_ylabel("CLR-transformed abundance", fontsize=11, color=clr_color, fontweight='bold')
 
 ax_sim_nonfocal_param.axhline(y=0, ls='--', lw=2, zorder=0, c='k', label='True amp. of non-oscillating OTU')
 

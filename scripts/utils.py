@@ -21,11 +21,16 @@ sub_plot_labels = ['a','b','c', 'd','e','f', 'g','h','i', 'j','k','l', 'm','n','
 
 # colors_dict = {'0':'#87CEEB', '1': '#FFA500', '2':'#FF6347'}
 
-dna_rna_color_dict = {'RNA': '#FF6347', 'DNA': '#87CEEB', 'ratio':'k'}
+dna_rna_color_dict = {'RNA': '#FF6347', 'DNA': '#87CEEB', 'ratio':'k', 'RNA_DNA':'k'}
 
 color_radius = 2
 
 cmap_data_type_dict = {'DNA': 'Blues', 'RNA': 'Reds'}
+
+transformation_color_dict = {'rel': '#FFA500', 'clr': '#1f7e3b'}
+# 13d14c
+
+
 
 
 rescaled_label_dict = {'RNA':'Rescaled RNA, ' + r'$r_{i}(t)$', 'DNA': 'Rescaled DNA, ' + r'$d_{i}(i)$', 'ratio': 'Rescaled RNA:DNA, ' + r'$\phi_{i}(t)$'}
@@ -195,6 +200,7 @@ def build_metadata_dict():
         for sample_i in [rna_sample, dna_sample]:
 
             metadata_dict[sample_i]['date'] = datetime_object
+            metadata_dict[sample_i]['day_of_year'] = datetime_object.timetuple().tm_yday
             metadata_dict[sample_i]['day'] = days
             metadata_dict[sample_i]['depth'] = depth
             metadata_dict[sample_i]['water_temp'] = water_temp
@@ -856,23 +862,28 @@ def clr_transform(s_by_s, otu_labels, samples, min_occupancy = 1, pseudocount = 
 
     otu_labels_occupancy = otu_labels[occupancy_idx]
 
-    s_by_s_rna_pseud = s_by_s_rna + pseudocount
-    s_by_s_dna_pseud = s_by_s_dna + pseudocount
+    #s_by_s_rna_pseud = s_by_s_rna + pseudocount
+    #s_by_s_dna_pseud = s_by_s_dna + pseudocount
     
     s_by_s_rna_occupancy = s_by_s_rna[occupancy_idx,:]
     s_by_s_dna_occupancy = s_by_s_dna[occupancy_idx,:]
 
+
+    n_reads_dna_occupancy = numpy.sum(s_by_s_dna_occupancy, axis=0)
+    n_reads_rna_occupancy = numpy.sum(s_by_s_rna_occupancy, axis=0)
+
+
     # geometric mean *over OTUs* per-sample
     # length of vector is # of samples
-    n_reads_rna_gmean = gmean(s_by_s_rna_pseud, axis=0)
-    n_reads_dna_gmean = gmean(s_by_s_dna_pseud, axis=0)
+    n_reads_rna_gmean = gmean(s_by_s_rna_occupancy, axis=0)
+    n_reads_dna_gmean = gmean(s_by_s_dna_occupancy, axis=0)
 
-    clr_s_by_s_rna = (numpy.log(s_by_s_rna_pseud) - numpy.log(n_reads_rna_gmean))
-    clr_s_by_s_dna = (numpy.log(s_by_s_dna_pseud) - numpy.log(n_reads_dna_gmean))
+    clr_s_by_s_rna = (numpy.log(s_by_s_rna_occupancy) - numpy.log(n_reads_rna_gmean))
+    clr_s_by_s_dna = (numpy.log(s_by_s_dna_occupancy) - numpy.log(n_reads_dna_gmean))
 
     # return 
 
-    return clr_s_by_s_dna, clr_s_by_s_rna, occupancy_idx, otu_labels_occupancy
+    return clr_s_by_s_dna, clr_s_by_s_rna, occupancy_idx, otu_labels_occupancy, n_reads_dna_occupancy, n_reads_rna_occupancy
 
 
 

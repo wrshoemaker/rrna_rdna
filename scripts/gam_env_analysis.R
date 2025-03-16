@@ -41,9 +41,16 @@ matrix[1,] <- env_variables
 for (i in 1:length(otu_afd_all)) { 
   
   otu_afd_i <- otu_afd_all[i]
-  model_i <- as.formula(paste(otu_afd_i, " ~ water_temp + specific_conductivity + salinity + total_nitrogen + total_phosphorus + doc + secchi_depth + ph + dissolved_oxygen"))
-  gam_env_i <- gam(formula=model_i, data=df_nonans_t)
+  #model_i <- as.formula(paste(otu_afd_i, " ~ water_temp + specific_conductivity + salinity + total_nitrogen + total_phosphorus + doc + secchi_depth + ph + dissolved_oxygen"))
+  #model_i <- as.formula(paste(otu_afd_i, " ~ water_temp + specific_conductivity + salinity + total_nitrogen + total_phosphorus + doc + secchi_depth + ph + dissolved_oxygen + s(days)"))
+  model_i <- as.formula(paste(otu_afd_i, " ~ water_temp + specific_conductivity + salinity + total_nitrogen + total_phosphorus + doc + secchi_depth + ph + dissolved_oxygen + s(days,k=", 3, ")"))
   
+  # represents degrees of freedom
+  # 123 samples
+  #model_i <- as.formula(paste(otu_afd_i, " ~ water_temp + specific_conductivity + salinity + total_nitrogen + total_phosphorus + doc + secchi_depth + ph + dissolved_oxygen + s(days,k=", 8, ") + s(day_of_year, bs = 'cc')"))
+  
+  gam_env_i <- gam(formula=model_i, data=df_nonans_t)
+   
   coef_gam_i <- as.numeric(gam_env_i$coefficients[2:10])
   p_value_i <- as.numeric(summary(gam_env_i)$p.pv)[2:10]
   
@@ -53,23 +60,34 @@ for (i in 1:length(otu_afd_all)) {
   matrix[(2*i),] <- coef_gam_out_i
   matrix[(2*i)+1,] <- p_value_out_i
   
+  #print(otu_afd_i)
+  #gam.check(gam_env_i)
+  
 }
 
 
 
 #save(copy_fourgram, file = "data.")
-
-write.table(x = matrix, file = "data/gam_env_analysis.csv", sep = ',', row.names = FALSE, col.names = FALSE, quote=FALSE)
-
+write.table(x = matrix, file = "data/gam_env_analysis_only_time.csv", sep = ',', row.names = FALSE, col.names = FALSE, quote=FALSE)
 
 
 
 
-#capture.output(gam.check(gam_env_i))
+# Otu000002, Otu000003, Otu000019, Otu000028, Otu000032
 
-#summary(gam_env_i)
 
-#model <- as.formula("clr_afd_otu1_rna_dna ~ water_temp+total_nitrogen+total_phosphorus+doc + secchi_depth + ph + dissolved_oxygen")
+# test OTU1
+#model_otu1_dna <- as.formula("Otu000004_dna ~ water_temp + specific_conductivity + salinity + total_nitrogen + total_phosphorus + doc + secchi_depth + ph + dissolved_oxygen + s(days,k=8) + s(day_of_year, bs = 'cc')")
+model_otu1_dna <- as.formula("Otu000019_rna ~ water_temp + specific_conductivity + salinity + total_nitrogen + total_phosphorus + doc + secchi_depth + ph + dissolved_oxygen + s(days,k=20)")
+
+gam_env_otu1_dna <- gam(formula=model_otu1_dna, data=df_nonans_t)
+
+#k.check(gam_env_otu1_dna, subsample=5000, n.rep=400)
+gam.check(gam_env_otu1_dna)
+capture.output(gam.check(gam_env_otu1_dna))
+
+summary(gam_env_otu1_dna)
+
 #gam_env <- gam(formula=model, data=df_nonans_t)
 
 # check residuals 

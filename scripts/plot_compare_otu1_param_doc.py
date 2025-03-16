@@ -321,6 +321,7 @@ def plot_diff_timescale_vs_amp():
             phase_all = []
             coeff_all = []
 
+            otu_label_het_all = []
             for otu_label_idx, otu_label in enumerate(param_dict['otu_labels']):
 
                 if otu_label_idx == 0:
@@ -330,6 +331,8 @@ def plot_diff_timescale_vs_amp():
                 freq_all.append(param_dict['freq_mle'][data_type][otu_label_idx])
                 phase_all.append(param_dict['amp_mle'][data_type][otu_label_idx])
                 coeff_all.append(param_otu)
+
+                otu_label_het_all.append(otu_label)
 
 
             freq_all = numpy.asarray(freq_all)
@@ -343,6 +346,11 @@ def plot_diff_timescale_vs_amp():
             #focal_otu_coeff = gam_coeff_dict[param_dict['otu_labels'][0]][data_type.lower()][env_variable]['coeff']
 
             diff_timescale_all = numpy.absolute(timescale_all - focal_otu_timescale)
+
+            to_keep_idx = (diff_timescale_all/focal_otu_timescale) <= 0.05
+            otu_label_het_all = numpy.asarray(otu_label_het_all)
+            print(data_type, otu_label_het_all[to_keep_idx])
+
             #delta_phase = phase_all - focal_otu_phase
             # max delta can be +/- pi
             #diff_phase_new = []
@@ -360,18 +368,24 @@ def plot_diff_timescale_vs_amp():
             #diff_phase_new = numpy.absolute(phase_all - focal_otu_phase)
             #diff_phase_new = focal_otu_phase - phase_all
 
-            #slope, intercept, r_value, p_value, std_err = stats.linregress(diff_timescale_all, diff_phase_new)
+            slope, intercept, r_value, p_value, std_err = stats.linregress(diff_timescale_all, phase_all)
+            #print(slope, p_value)
 
             rho_2, p_value = utils.corr_permute_test(diff_timescale_all, phase_all)
 
-            print(rho_2, p_value)
+
 
             ax = fig.add_subplot(gs[env_variable_idx, data_type_idx])
 
             #edgecolor = utils.dna_rna_color_dict[data_type]
             #cmap='RdBu', norm=colors.Normalize(vmin=-1*lim_, vmax=lim_)       
-            ax.scatter(diff_timescale_all, phase_all, alpha=1, s=40, edgecolors='k', c=coeff_all, cmap='RdBu', norm=colors.Normalize(vmin=-1*max_coeff, vmax=max_coeff), zorder=2)
+            #ax.scatter(diff_timescale_all, phase_all, alpha=1, s=40, edgecolors='k', c=coeff_all, cmap='RdBu', norm=colors.Normalize(vmin=-1*max_coeff, vmax=max_coeff), zorder=2)
+            ax.scatter(diff_timescale_all, phase_all, alpha=1, s=40, c=utils.dna_rna_color_dict[data_type], zorder=2)
             ax.set_xlim([0, max(timescale_all)])
+
+            x_range = numpy.linspace(0, 400, num=1000)
+            y_pred = intercept + (slope*x_range)
+            ax.plot(x_range, y_pred, c='k', ls='--', lw=3, zorder=3)
 
             #print(min(coeff_all), max(coeff_all))
 
@@ -395,13 +409,13 @@ def plot_diff_timescale_vs_amp():
 
 
             if env_variable_idx == 0:
-                ax.set_title(data_type, fontsize=14)
+                ax.set_title(data_type, fontsize=14, color=utils.dna_rna_color_dict[data_type], fontweight='bold')
 
             #if env_variable_idx + data_type_idx == 0:
             #    ax.legend(loc='upper left', fontsize=6)
 
-            if data_type_idx == 0:
-                ax.text(-0.22, 0.5, utils.env_variable_label_dict[env_variable], fontsize=14, ha='center', va='center', rotation=90, transform=ax.transAxes)
+            #if data_type_idx == 0:
+            #    ax.text(-0.22, 0.5, utils.env_variable_label_dict[env_variable], fontsize=14, ha='center', va='center', rotation=90, transform=ax.transAxes)
 
 
 

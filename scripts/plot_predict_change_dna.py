@@ -47,7 +47,7 @@ def make_null_predict_change_dict(n_perm = 10000, otu_to_remove=None):
 
     metadata_dict = utils.build_metadata_dict()
     s_by_s, otu_labels, samples = utils.load_count_data()
-    clr_s_by_s_dna, clr_s_by_s_rna, otu_labels_subset = utils.clr_transform(s_by_s, otu_labels, samples)
+    clr_s_by_s_dna, clr_s_by_s_rna, occupancy_idx, otu_labels_subset, n_reads_dna_occupancy, n_reads_rna_occupancy = utils.clr_transform(s_by_s, otu_labels, samples)
 
     if otu_to_remove != None:
         otu_to_keep_idx = (otu_labels_subset != otu_to_remove)
@@ -65,6 +65,7 @@ def make_null_predict_change_dict(n_perm = 10000, otu_to_remove=None):
     clr_s_by_s_rescaled_ratio = clr_s_by_s_rescaled_rna - clr_s_by_s_rescaled_dna
 
     diff_clr_s_by_s_rescaled_dna = clr_s_by_s_rescaled_dna[:,1:] - clr_s_by_s_rescaled_dna[:,:-1]
+    diff_clr_s_by_s_rescaled_rna = clr_s_by_s_rescaled_rna[:,1:] - clr_s_by_s_rescaled_rna[:,:-1]
     time_idx_range = numpy.arange(len(days))
 
     #print(diff_clr_s_by_s_rescaled_dna)
@@ -86,9 +87,13 @@ def make_null_predict_change_dict(n_perm = 10000, otu_to_remove=None):
 
         clr_s_by_s_rescaled_ratio_i = clr_s_by_s_rescaled_ratio[otu_i_idx,:-1]
         diff_clr_s_by_s_rescaled_dna_i = diff_clr_s_by_s_rescaled_dna[otu_i_idx,:]
+        diff_clr_s_by_s_rescaled_rna_i = diff_clr_s_by_s_rescaled_rna[otu_i_idx,:]
 
         null_predict_change_dict[otu_i]['clr_s_by_s_rescaled_ratio'] = clr_s_by_s_rescaled_ratio_i.tolist()
         null_predict_change_dict[otu_i]['diff_clr_s_by_s_rescaled_dna'] = diff_clr_s_by_s_rescaled_dna_i.tolist()
+        null_predict_change_dict[otu_i]['diff_clr_s_by_s_rescaled_rna'] = diff_clr_s_by_s_rescaled_rna_i.tolist()
+        null_predict_change_dict[otu_i]['n_reads_dna_occupancy_total'] = n_reads_dna_occupancy.tolist()
+        null_predict_change_dict[otu_i]['n_reads_rna_occupancy_total'] = n_reads_dna_occupancy.tolist()
 
         # slope and intercept
         slope, intercept, r_value, p_value, std_err = stats.linregress(clr_s_by_s_rescaled_ratio_i, diff_clr_s_by_s_rescaled_dna_i)
@@ -104,8 +109,11 @@ def make_null_predict_change_dict(n_perm = 10000, otu_to_remove=None):
         null_predict_change_dict[otu_i]['rho_temp_clr_rna'] = rho_temp_clr_rna
    
 
+
     sys.stderr.write("Generating distribution of null correlations via permuting time labels...\n")
     for n in range(n_perm):
+
+        continue
 
         if n % 1000 == 0:
 
@@ -386,9 +394,9 @@ if __name__ == "__main__":
 
     print("Running...")
 
-    # #make_null_predict_change_dict()
+    make_null_predict_change_dict()
 
-    plot_predict_change_scatter()  
+    #plot_predict_change_scatter()  
     #plot_predict_change_null_hist()
 
 

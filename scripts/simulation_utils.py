@@ -15,8 +15,6 @@ import sine_parameter_utils
 from lmfit import Minimizer, create_params, fit_report
 import itertools
 
-
-
 import matplotlib.pyplot as plt
 from matplotlib import cm
 
@@ -824,6 +822,7 @@ def plot_oscillation_artifact_simulation():
 
                 param_combo_all = list(param_dict[method][rank][gm].keys())
 
+                #amp_first_rank = [s[0] for s in param_combo_all]
                 amp_first_rank = [s[0] for s in param_combo_all]
 
                 amp_inferred = [numpy.mean(param_dict[method][rank][gm][p]['amp_mle']) for p in param_combo_all]
@@ -1500,6 +1499,80 @@ def data_collapse_simulation(mu, s, S, N, dist, gm, n_sites, n_iter=1, rhogamma=
 
 
 
+def plot_oscillation_artifact_phase_simulation():
+
+    fig = plt.figure(figsize = (8, 8))
+
+    param_dict = pickle.load(open(param_oscillation_artifact_simulation_path, "rb"))
+
+    for method_idx, method in enumerate(['log_rel', 'clr']):
+
+        for rank_idx, rank in enumerate(['focal', 'nonfocal']):
+
+            ax = plt.subplot2grid((2, 2), (method_idx, rank_idx))
+
+            ax.text(-0.1, 1.07, utils.sub_plot_labels[method_idx+rank_idx], fontsize=10, fontweight='bold', ha='center', va='center', transform=ax.transAxes)
+
+            phase_ticks = [0, 0.5*numpy.pi, numpy.pi, 1.5*numpy.pi, 2*numpy.pi]
+            phase_tick_labels = [r'0', r'$\frac{\pi}{2}$', r'$\pi$', r'$\frac{3\pi}{2}$',  r'$2\pi$']
+            ax.set_yticks(phase_ticks)
+            ax.set_yticklabels(phase_tick_labels)
+            #ax.xaxis.set_tick_params(labelsize=7)
+            ax.yaxis.set_tick_params(labelsize=9)
+            ax.set_ylim([0, 2*numpy.pi])
+
+            ax.axhline(y=1.8, ls=':', lw=2, c='k', label='True phase of oscillating OTU')
+            ax.axhline(y=1.8 + numpy.pi, ls='--', lw=2, c='k', label='True phase of oscillating OTU + ' + r'$\pi$' )
+
+
+            for gm_idx, gm in enumerate(list(param_dict[method][rank].keys())):
+
+                param_combo_all = list(param_dict[method][rank][gm].keys())
+
+                amp_first_rank = [s[0] for s in param_combo_all]
+
+                #sprint(param_combo_all)
+                amp_inferred = [numpy.mean(param_dict[method][rank][gm][p]['phase_mle']) for p in param_combo_all]
+                #print(amp_inferred)
+                #print(amp_inferred)
+
+                if gm_idx == 0:
+
+                    if rank == 'focal':
+                        #ax.plot([min(amp_first_rank), max(amp_first_rank)], [min(amp_first_rank), max(amp_first_rank)], ls=':', lw=2, c='k', label='1:1')
+                        ax.set_ylabel('Inferred phase of oscillating OTU', fontsize=11)
+                    else:
+                        #ax.axhline(y=0, ls=':', lw=2, c='k', label='True amplitude of non-focal OTU')
+                        ax.set_ylabel('Inferred phase of non-oscillating OTU', fontsize=11)
+
+
+                    if method == 'log_rel':
+                        ax.set_title('Relative abundance', fontsize=12)
+                    else:
+                        ax.set_title('CLR-transformed abundance', fontsize=12)
+
+                    
+                ax.plot(amp_first_rank, amp_inferred, lw=2, ls='-', c=gm_color[gm], label='Mean ' + r'$\sigma$' ' = ' + str(round(gm, 3)))
+                ax.set_xlabel('True amplitude of oscillating focal OTU', fontsize=11)
+
+                if (method_idx == 0) and (rank_idx==0):
+                    ax.legend(loc='upper left', fontsize=8)
+
+                #if method_idx + rank_idx == 2:
+                #    ax.set_ylim([-0.05, 0.58])
+
+
+    fig.subplots_adjust(hspace=0.3 , wspace=0.3)
+    fig_name = "%soscillation_sim_phase_results.png" % config.analysis_directory
+    fig.savefig(fig_name, format='png', bbox_inches = "tight", pad_inches = 0.4, dpi = 600)
+    plt.close()
+
+
+
+
+
+
+
 if __name__ == "__main__":
 
     print("Running...")
@@ -1530,7 +1603,7 @@ if __name__ == "__main__":
 
 
     #make_compare_sigma_clr_to_true_abundance_oscillating_dict(mu, s, S, N, n_sites, n_iter=10)
-    plot_compare_clr_to_true_abundance_oscillating()
+    #plot_compare_clr_to_true_abundance_oscillating()
     
-    #plot_oscillation_artifact_simulation()
+    #plot_oscillation_artifact_phase_simulation()
 
