@@ -39,7 +39,7 @@ def plot_doc_vs_afd():
     sample_type = numpy.asarray([metadata_dict[s]['sample_type'] for s in samples])
     days = numpy.asarray([metadata_dict[s]['day'] for s in samples[(sample_type=='RNA')]])
 
-    env_variable_array = numpy.asarray([metadata_dict[s]['doc'] for s in samples[(sample_type=='RNA')]])
+    env_variable_array = numpy.asarray([metadata_dict[s]['water_temp'] for s in samples[(sample_type=='RNA')]])
     # remove nans
     env_to_keep_idx = (~numpy.isnan(env_variable_array))
     env_variable_array_clean = env_variable_array[env_to_keep_idx]
@@ -51,6 +51,7 @@ def plot_doc_vs_afd():
     afd_days = param_dict['data']['days']['RNA'][0]
     #afd_rna_1 = param_dict['data']['clr_afd']['RNA'][otu_1_idx]
     afd_dna_1 = param_dict['data']['clr_afd']['DNA'][otu_1_idx]
+    afd_rna_1 = param_dict['data']['clr_afd']['RNA'][otu_1_idx]
 
     #afd_ratio_1 = numpy.asarray(param_dict['data']['clr_afd']['RNA'][otu_1_idx]) - numpy.asarray(param_dict['data']['clr_afd']['DNA'][otu_1_idx])
 
@@ -64,7 +65,7 @@ def plot_doc_vs_afd():
     fig, ax = plt.subplots(figsize=(6,4))
     # ax.scatter(afd_days, afd_dna_1, s=8, alpha=1, c=utils.dna_rna_color_dict['DNA'], zorder=2)
     #ax.scatter(afd_days, afd_rna_1, s=8, alpha=1, c=utils.dna_rna_color_dict['RNA'], zorder=2)
-    ax.plot(afd_days, afd_dna_1, lw=1.5, alpha=1, c=utils.dna_rna_color_dict['DNA'], zorder=2)
+    ax.plot(afd_days, afd_rna_1, lw=1.5, alpha=1, c=utils.dna_rna_color_dict['RNA'], zorder=2)
 
     ax_env = ax.twinx()
     #ax_env.scatter(days_clean, env_variable_array_clean, s=8, alpha=1, c='k', zorder=2)
@@ -81,6 +82,7 @@ def plot_doc_vs_afd():
             continue
 
         otu_i_idx = param_dict['otu_labels'].index(otu_label_i)
+
 
         timescale_i = 2*numpy.pi/param_dict['freq_mle']['DNA'][otu_i_idx]
         amp_i = float(param_dict['amp_mle']['DNA'][otu_i_idx])
@@ -124,7 +126,7 @@ def plot_doc_vs_afd():
         #afd_ratio_i = numpy.asarray(param_dict['data']['clr_afd']['RNA'][otu_i_idx]) - numpy.asarray(param_dict['data']['clr_afd']['DNA'][otu_i_idx])
         #afd_ratio_coarse += afd_ratio_i
 
-        ax.plot(afd_days, afd_i, lw=0.3, alpha=0.7, c=utils.dna_rna_color_dict['RNA'], zorder=2)
+        #ax.plot(afd_days, afd_i, lw=0.3, alpha=0.7, c=utils.dna_rna_color_dict['RNA'], zorder=2)
 
 
     #afd_all = numpy.asarray(afd_all)
@@ -137,18 +139,18 @@ def plot_doc_vs_afd():
     #ax.plot(afd_days, afd_coarse, lw=1, alpha=1, c=utils.dna_rna_color_dict['RNA'], zorder=2)
     #ax.legend(handles=legend_elements, loc='upper right', fontsize=8)
 
-    ax.set_xlabel('Time (days)', fontsize=9)
+    ax.set_xlabel('Time (days)', fontsize=13, fontweight='bold')
     ax.set_xlim([0, max(afd_days)])
     ax.set_xticks(minor_days, minor=True)
     ax.set_xticks(major_days, minor=False)
     ax.set_xticklabels(major_labels, minor=False, fontsize=7)
 
-    ax.set_ylabel("CLR-transformed abundance, DNA", fontsize=10)
-    ax_env.set_ylabel(utils.env_variable_label_dict['doc'], fontsize=10)
+    ax.set_ylabel("CLR-transformed abundance, RNA", fontsize=13, c=utils.dna_rna_color_dict['RNA'], fontweight='bold')
+    ax_env.set_ylabel(utils.env_variable_label_dict['water_temp'], fontsize=13, fontweight='bold')
 
 
     fig.subplots_adjust(hspace=0.35, wspace=0.40)
-    fig.savefig("%sdoc_vs_afd_ratio.png" % (config.analysis_directory), format='png', bbox_inches = "tight", pad_inches = 0.4, dpi = 600)
+    fig.savefig("%stemp_vs_afd_ratio.png" % (config.analysis_directory), format='png', bbox_inches = "tight", pad_inches = 0.4, dpi = 600)
     plt.close()
 
 
@@ -226,4 +228,9 @@ def compare_coarse_amplitudes():
 
 
 
-plot_doc_vs_afd()
+
+def plot_():
+
+
+
+#plot_doc_vs_afd()

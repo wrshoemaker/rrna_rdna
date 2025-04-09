@@ -315,6 +315,8 @@ def plot_diff_timescale_vs_amp():
 
     for env_variable_idx, env_variable in enumerate(['doc']):
 
+        subplot_label_all = ['d', 'e']
+
         for data_type_idx, data_type in enumerate(['DNA', 'RNA']):
 
             freq_all = []
@@ -417,6 +419,7 @@ def plot_diff_timescale_vs_amp():
             #if data_type_idx == 0:
             #    ax.text(-0.22, 0.5, utils.env_variable_label_dict[env_variable], fontsize=14, ha='center', va='center', rotation=90, transform=ax.transAxes)
 
+            ax.text(-0.095, 1.06, subplot_label_all[data_type_idx], fontsize=10, fontweight='bold', ha='center', va='center', transform=ax.transAxes)
 
 
     fig.subplots_adjust(hspace=0.3, wspace=0.25)

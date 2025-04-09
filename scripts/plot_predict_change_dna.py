@@ -39,7 +39,6 @@ def get_null_predict_change_dict_path(otu_to_remove=None):
 
 def make_null_predict_change_dict(n_perm = 10000, otu_to_remove=None):
 
-
     sys.stderr.write("Calculating observed correlations...\n")
 
     # *if* the RNA/DNA ratio is proportional to the growth rate, 
@@ -73,6 +72,7 @@ def make_null_predict_change_dict(n_perm = 10000, otu_to_remove=None):
     sample_type = numpy.asarray([metadata_dict[s]['sample_type'] for s in samples])
     samples_rna = samples[(sample_type=='RNA')]
     days = numpy.asarray([metadata_dict[s]['day'] for s in samples_rna])
+    delta_days = days[1:] - days[:-1]
     #env_variable_all = ['water_temp', 'specific_conductivity', 'dissolved_oxygen', 'salinity', 'secchi_depth', 'ph', 'air_temperature']
     env_variable_array = numpy.asarray([metadata_dict[s]['water_temp'] for s in samples_rna])
     env_to_keep_idx = ~numpy.isnan(env_variable_array)
@@ -86,8 +86,8 @@ def make_null_predict_change_dict(n_perm = 10000, otu_to_remove=None):
         null_predict_change_dict[otu_i]['rho_null_list'] = []  
 
         clr_s_by_s_rescaled_ratio_i = clr_s_by_s_rescaled_ratio[otu_i_idx,:-1]
-        diff_clr_s_by_s_rescaled_dna_i = diff_clr_s_by_s_rescaled_dna[otu_i_idx,:]
-        diff_clr_s_by_s_rescaled_rna_i = diff_clr_s_by_s_rescaled_rna[otu_i_idx,:]
+        diff_clr_s_by_s_rescaled_dna_i = diff_clr_s_by_s_rescaled_dna[otu_i_idx,:] / delta_days
+        diff_clr_s_by_s_rescaled_rna_i = diff_clr_s_by_s_rescaled_rna[otu_i_idx,:] / delta_days
 
         null_predict_change_dict[otu_i]['clr_s_by_s_rescaled_ratio'] = clr_s_by_s_rescaled_ratio_i.tolist()
         null_predict_change_dict[otu_i]['diff_clr_s_by_s_rescaled_dna'] = diff_clr_s_by_s_rescaled_dna_i.tolist()
@@ -113,8 +113,6 @@ def make_null_predict_change_dict(n_perm = 10000, otu_to_remove=None):
     sys.stderr.write("Generating distribution of null correlations via permuting time labels...\n")
     for n in range(n_perm):
 
-        continue
-
         if n % 1000 == 0:
 
             sys.stderr.write("%d permutations done...\n" % n)
@@ -135,7 +133,7 @@ def make_null_predict_change_dict(n_perm = 10000, otu_to_remove=None):
         for otu_i_idx, otu_i in enumerate(otu_labels_subset):
 
             clr_s_by_s_ratio_null_rescaled_i = clr_s_by_s_ratio_null_rescaled[otu_i_idx,:-1]
-            diff_clr_s_by_s_dna_null_rescaled_i = diff_clr_s_by_s_dna_null_rescaled[otu_i_idx,:]
+            diff_clr_s_by_s_dna_null_rescaled_i = diff_clr_s_by_s_dna_null_rescaled[otu_i_idx,:] / delta_days
 
             slope_null, intercept_null, r_value_null, p_value_null, std_err_null = stats.linregress(clr_s_by_s_ratio_null_rescaled_i, diff_clr_s_by_s_dna_null_rescaled_i)
             
@@ -198,7 +196,6 @@ def calculate_max_t(null_predict_change_dict, measure):
 def plot_predict_change_scatter(otu_to_remove=None):
 
     null_predict_change_dict = load_null_predict_change_dict_path(otu_to_remove)
-    
 
     fig = plt.figure(figsize = (20, 20))
     fig.subplots_adjust(bottom= 0.15)
@@ -220,8 +217,8 @@ def plot_predict_change_scatter(otu_to_remove=None):
 
             ax.scatter(clr_s_by_s_rescaled_ratio_c, diff_clr_s_by_s_rescaled_dna_c, s=8, alpha=1, c='k', zorder=2)
             ax.set_title(c, fontsize=11)
-            ax.set_xlabel("CLR-transformed abund., RNA - DNA", fontsize=10)
-            ax.set_ylabel("Change in DNA b/w timepoints", fontsize=10)
+            ax.set_xlabel("RNA:DNA at time " + r'$t$' + ', ' + r'$\phi_{i}(t)$', fontsize=10)
+            ax.set_ylabel("Per-day change in DNA, " + r'$\delta c_{i}^{\mathrm{DNA}} / \delta t $', fontsize=10)
 
             # regression
             #log10_mean_rescaled_ratio_over_otus_c = numpy.log10(mean_rescaled_ratio_over_otus_c)
@@ -234,12 +231,15 @@ def plot_predict_change_scatter(otu_to_remove=None):
             null_slope_c = numpy.asarray(null_predict_change_dict[c]['slope_null_list'])
             p_value_c = sum(null_slope_c > slope)/len(null_slope_c)
 
+            #print(c, p_value_c)
+
             if p_value_c <= 0.05:
                 ax.plot(x_range_, y_fit_range, ls='--', lw=2.5, c='k')
                 #print( r_value**2)
 
             ax.text(0.26, 0.87, r'$\beta_{1} = $' + str(round(slope, 3)), fontsize=12, ha='center', va='center', transform=ax.transAxes)
-            ax.text(0.26, 0.78, utils.get_p_value_latex_label_dict(p_value_c), fontsize=12, ha='center', va='center', transform=ax.transAxes)
+            #ax.text(0.26, 0.78, utils.get_p_value_latex_label_dict(p_value_c), fontsize=12, ha='center', va='center', transform=ax.transAxes)
+            ax.text(0.26, 0.78, r'$P = $' + str(round(p_value_c, 4)), fontsize=12, ha='center', va='center', transform=ax.transAxes)
 
         
     if otu_to_remove == None:
@@ -394,9 +394,9 @@ if __name__ == "__main__":
 
     print("Running...")
 
-    make_null_predict_change_dict()
+    #make_null_predict_change_dict()
 
-    #plot_predict_change_scatter()  
+    plot_predict_change_scatter()  
     #plot_predict_change_null_hist()
 
 

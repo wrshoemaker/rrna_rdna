@@ -6,6 +6,8 @@ import numpy
 import math
 import sympy
 from scipy.stats import gmean
+from scipy import stats
+
 
 from matplotlib import cm
 from collections import Counter
@@ -37,7 +39,7 @@ rescaled_label_dict = {'RNA':'Rescaled RNA, ' + r'$r_{i}(t)$', 'DNA': 'Rescaled 
 #rescaled_label_dict = {'RNA':'Rescaled RNA, ' + r'$r_{i}(t)$', 'DNA': 'Rescaled DNA, ' + r'$d_{i}(i)$', 'ratio': 'Rescaled RNA:DNA, ' + r'$\phi_{i}(t)$'}
 rescaled_label_clr_dict = {'RNA':'RNA', 'DNA': 'DNA', 'ratio': 'RNA - DNA'}
 
-sample_label_dict = {'RNA': 'RNA', 'DNA':'DNA', 'ratio': 'RNA-DNA ratio'}
+sample_label_dict = {'RNA': 'RNA', 'DNA':'DNA', 'ratio': 'RNA:DNA', 'RNA_DNA': 'RNA:DNA'}
 
 data_type_all = ['DNA', 'RNA', 'ratio']
 env_variables_all = ['water_temp', 'specific_conductivity', 'dissolved_oxygen', 'salinity', 'secchi_depth', 'ph']
@@ -1243,6 +1245,51 @@ def build_gam_coeff_dict():
 
     return gam_coeff_dict
     
+
+
+# performs regression on the two arrays passes
+def get_confidence_hull(x, y, conf=0.95):
+
+    if type(x) is not numpy.ndarray:
+        x = numpy.asarray(x)
+
+    if type(y) is not numpy.ndarray:
+        y = numpy.asarray(y)
+
+    slope, intercept, r_value, p_value, std_err = stats.linregress(x, y)
+
+
+    if min([min(x), min(y) ] ) < 0:
+        min_range = min([min(x), min(y) ] ) * 1.3
+
+    else:
+        min_range = min([min(x), min(y) ] ) * 0.5
+
+    max_range = max([max(x), max(y) ] ) * 1.3
+
+    x_range = numpy.linspace(min_range, max_range, num=1000)
+    y_range_pred = numpy.asarray([ intercept + (x_i*slope) for x_i in  x_range])
+
+    y_pred = numpy.asarray([intercept + (slope*x_i) for x_i in x])
+
+    SSE = sum((y - y_pred) ** 2)
+    N = len(x)
+    sd_SSE = numpy.sqrt( (1/ (N-2)) * SSE)
+    sxd = numpy.sum((x-numpy.mean(x))**2)
+
+    sx = (x_range-numpy.mean(x))**2	# x axisr for band
+    # Quantile of Student's t distribution for p=1-alpha/2
+    alpha = 1-conf
+    q = stats.t.ppf(1-alpha/2, N-2)
+    # Confidence band
+    dy = q*sd_SSE*numpy.sqrt( 1/N + sx/sxd )
+    # Upper confidence band
+    ucb = y_range_pred + dy
+    # Lower confidence band
+    lcb = y_range_pred - dy
+
+
+    return x_range, y_range_pred, lcb, ucb
 
 
 

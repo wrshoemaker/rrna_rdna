@@ -43,11 +43,11 @@ gs = gridspec.GridSpec(nrows=1, ncols=3)
 
 
 ax_timescale = fig.add_subplot(gs[0, 0])
-ax_amp = fig.add_subplot(gs[0, 1])
-ax_phase = fig.add_subplot(gs[0, 2])
+ax_amp = fig.add_subplot(gs[0, 2])
+ax_phase = fig.add_subplot(gs[0, 1])
 
 
-for ax_idx, ax_ in enumerate([ax_timescale, ax_amp, ax_phase]):
+for ax_idx, ax_ in enumerate([ax_timescale, ax_phase, ax_amp]):
 
     ax_.set_ylabel('Probability density', fontsize=12)
     ax_.text(-0.095, 1.06, utils.sub_plot_labels[ax_idx], fontsize=10, fontweight='bold', ha='center', va='center', transform=ax_.transAxes)

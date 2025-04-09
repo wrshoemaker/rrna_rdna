@@ -20,7 +20,7 @@ python plot_fig_2.py
 # Fig. 3
 python plot_fig_3.py
 
-# Fig. 4
+# Fig. 4, S15
 python plot_fig_4.p
 
 # Fig. 5
@@ -28,7 +28,6 @@ python plot_fig_5.py
 
 
 # Supplemental figures
-
 # Fig. S1
 python plot_logfold_ratio.py
 
@@ -38,26 +37,41 @@ python plot_macroeco_summary.py
 # Fig. S3 
 python plot_compare_rna_dna_macroeco.py
 
+# Fig. S4, S6, S7 compare_clr_to_true_abundance_oscillating
+python simulation_utils.py
 
-# Fig. SX
-python python plot_clr_comparison.py
+# Fig. S5 clr_vs_rel_abund_comparison_formatted
+python plot_clr_vs_rel_abund_comparison()
 
-
-python plot_clr_vs_rel_abund_comparison.py
-
-python plot_clr_vs_clr_pseudo_comparison.py
-
-
-
+# Fig. S8
 pyhton plot_n_reads.py
 
+# Figs. S9, S10, S16; time_vs_abundance_clr_DNA, time_vs_abundance_clr_RNA, time_vs_clr_ratio
+python sine_parameter_utils.py
+
+# Figs. S11, S12; autocorrelation_otu_DNA, autocorrelation_otu_RNA
+python plot_autocorrelation_otu.py
+
+# Fig. S13; phylo_dist_vs_sine_params
+python plot_phylo_dist_vs_sine_params.py
+
+# Fig. S14; data_collapse_simulation
+python plot_data_collapse_simulation.py
+
+# Fig. S15; predict_change_dna.png
+python plot_predict_change_dna.py
+
+# 
 
 
-# figs to cite
 
-# fig6.png
-# .png
-# time_vs_env.png
-#copy_number_vs_amp
+#python python plot_clr_comparison.py
+#python plot_clr_vs_rel_abund_comparison.py
+#python plot_clr_vs_clr_pseudo_comparison.py
+
+
+
+
+
 
 

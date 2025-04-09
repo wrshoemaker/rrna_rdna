@@ -1599,8 +1599,20 @@ if __name__ == "__main__":
 
 
     #make_compare_clr_to_true_abundance_dict()
-    #plot_compare_clr_to_true_abundance()
 
+    # Fig. S4
+    plot_compare_clr_to_true_abundance()
+
+    # Fig. S6
+    oscillation_sim_results()
+
+    # Fig. S7
+    plot_oscillation_artifact_phase_simulation()
+
+    
+
+    
+    
 
     #make_compare_sigma_clr_to_true_abundance_oscillating_dict(mu, s, S, N, n_sites, n_iter=10)
     #plot_compare_clr_to_true_abundance_oscillating()

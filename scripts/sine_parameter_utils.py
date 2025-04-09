@@ -1090,6 +1090,94 @@ def plot_rna_dna_residuals():
 
 
 
+def plot_residuals(data_type='RNA', otu_to_remove=None, method='mle'):
+
+    metadata_dict = utils.build_metadata_dict()
+    s_by_s, otu_labels, samples = utils.load_count_data()
+    
+    if otu_to_remove != None:
+        otu_to_keep_idx = (otu_labels != otu_to_remove)
+        s_by_s = s_by_s[otu_to_keep_idx,:]
+        otu_labels = otu_labels[otu_to_keep_idx]
+
+    clr_s_by_s_dna, clr_s_by_s_rna, occupancy_idx, otu_labels_subset, n_reads_dna_occupancy, n_reads_rna_occupancy = utils.clr_transform(s_by_s, otu_labels, samples)
+    # get days
+    metadata_dict = utils.build_metadata_dict()
+    sample_type = numpy.asarray([metadata_dict[s]['sample_type'] for s in samples])
+    days = numpy.asarray([metadata_dict[s]['day'] for s in samples[(sample_type==data_type)]])
+
+
+    #param_dict =  load_param_otu_dict(log10_status=False, clr_status=True)
+    param_dict =  pickle.load(open(param_otu_mle_dict_path, 'rb'))
+
+    days = param_dict['data']['days'][data_type]
+    afd = param_dict['data']['clr_afd'][data_type]
+
+    fig = plt.figure(figsize = (20, 20))
+    fig.subplots_adjust(bottom= 0.15)
+
+    idx_all = list(range(len(afd)))
+    chunk_all = [idx_all[x:x+5] for x in range(0, len(idx_all), 5)]
+
+    for chunk_idx, chunk in enumerate(chunk_all):
+
+        for c_idx, c in enumerate(chunk):
+
+            ax = plt.subplot2grid((len(chunk_all), len(chunk_all[0])), (chunk_idx, c_idx))
+
+            days_c = days[c]
+            afd_c = afd[c]
+            #afd_c = clr_s_by_s_rna_subset[c,:]
+
+            amp = param_dict['amp_%s' % method][data_type][c]
+            freq = param_dict['freq_%s' % method][data_type][c]
+            phase = param_dict['phase_%s' % method][data_type][c]
+            param_mean = param_dict['param_mean_%s' % method][data_type][c]
+            #upper_bound = param_dict['upper_bound'][data_type][c]
+            beta = param_dict['beta'][data_type][c]
+            sigma = (2/(beta+1))
+
+            days_c = numpy.asarray(days_c)
+            
+            days_range = numpy.linspace(min(days_c), max(days_c), 1000)
+
+            if sigma < 2:
+                model_prediction = amp*numpy.sin(freq*days_c+phase) + numpy.log(param_mean) + numpy.log(1 - sigma/2)
+            else:
+                model_prediction = amp*numpy.sin(freq*days_c+phase) + numpy.log(param_mean) + numpy.log(1 - sigma/2)
+
+            resid = afd_c - model_prediction
+
+            ax.scatter(days_c, resid, s=8, alpha=1, c=utils.dna_rna_color_dict[data_type], zorder=2)
+            #ax.axhline(y=0, ls=':', lw=2, zorder=0, c='k')#')
+            ax.set_xlabel("Time (days)", fontsize=10)
+            ax.set_ylabel("Residuals, " + utils.rescaled_label_clr_dict[data_type], fontsize=10)
+            ax.set_title(otu_labels_subset[c], fontsize=11)
+
+            #minor_days, major_days, major_labels
+            ax.set_xlim([0, max(days_c)])
+            ax.set_xticks(minor_days, minor=True)
+            ax.set_xticks(major_days, minor=False)
+            ax.set_xticklabels(major_labels, minor=False, fontsize=7)
+            #max_ = numpy.absolute(max(residuals))
+            #ax.set_ylim([-1*max_, max_])
+
+            #if (chunk_idx == 0) and (c_idx == 0):
+            #    ax.legend(loc='upper right', fontsize=6)
+
+
+    if otu_to_remove == None:
+        otu_to_remove_label = ''
+    else:
+        otu_to_remove_label = '_no_%s' % otu_to_remove 
+ 
+    fig.subplots_adjust(hspace=0.35, wspace=0.40)
+    fig_name = "%stime_vs_residuals_%s%s.png" % (config.analysis_directory, data_type, otu_to_remove_label)
+    fig.savefig(fig_name, format='png', bbox_inches = "tight", pad_inches = 0.4, dpi = 600)
+    plt.close()
+
+
+
 
 
 def plot_compare_rna_dna_residuals():
@@ -1811,7 +1899,7 @@ if __name__ == "__main__":
     print("Running...")
 
     # Infer parameters
-    make_param_mle_otu_dict()
+    #make_param_mle_otu_dict()
     #make_param_env_dict()
     
     #plot_time_vs_abundance_clr(data_type='RNA')
@@ -1819,6 +1907,8 @@ if __name__ == "__main__":
 
     # plot includes sine difference
     #plot_time_vs_clr_ratio()
+
+    
 
     #plot_time_vs_env()
     #plot_summary_env_sine_params()
@@ -1851,4 +1941,8 @@ if __name__ == "__main__":
 
 
     #make_flat_file_for_gam()
+
+    #plot_residuals(data_type='DNA')
+
+    plot_rna_dna_resid_vs_delta_dna()
 

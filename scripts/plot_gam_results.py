@@ -32,7 +32,6 @@ def plot_gam_stat(stat='p_value_fdr'):
     #fig.suptitle('No random effects', fontsize=16)
     fig.suptitle('Time as a random effect', fontsize=16)
 
-
     for nested_i_idx, nested_i in enumerate(env_variable_all_nested):
 
         for env_variable_j_idx, env_variable_j in enumerate(nested_i):

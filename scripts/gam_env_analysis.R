@@ -43,7 +43,7 @@ for (i in 1:length(otu_afd_all)) {
   otu_afd_i <- otu_afd_all[i]
   #model_i <- as.formula(paste(otu_afd_i, " ~ water_temp + specific_conductivity + salinity + total_nitrogen + total_phosphorus + doc + secchi_depth + ph + dissolved_oxygen"))
   #model_i <- as.formula(paste(otu_afd_i, " ~ water_temp + specific_conductivity + salinity + total_nitrogen + total_phosphorus + doc + secchi_depth + ph + dissolved_oxygen + s(days)"))
-  model_i <- as.formula(paste(otu_afd_i, " ~ water_temp + specific_conductivity + salinity + total_nitrogen + total_phosphorus + doc + secchi_depth + ph + dissolved_oxygen + s(days,k=", 3, ")"))
+  model_i <- as.formula(paste(otu_afd_i, " ~ water_temp + specific_conductivity + salinity + total_nitrogen + total_phosphorus + doc + secchi_depth + ph + dissolved_oxygen + s(days,k=", 20, ")"))
   
   # represents degrees of freedom
   # 123 samples
@@ -78,7 +78,7 @@ write.table(x = matrix, file = "data/gam_env_analysis_only_time.csv", sep = ',',
 
 # test OTU1
 #model_otu1_dna <- as.formula("Otu000004_dna ~ water_temp + specific_conductivity + salinity + total_nitrogen + total_phosphorus + doc + secchi_depth + ph + dissolved_oxygen + s(days,k=8) + s(day_of_year, bs = 'cc')")
-model_otu1_dna <- as.formula("Otu000019_rna ~ water_temp + specific_conductivity + salinity + total_nitrogen + total_phosphorus + doc + secchi_depth + ph + dissolved_oxygen + s(days,k=20)")
+model_otu1_dna <- as.formula("Otu000001_rna ~ water_temp + specific_conductivity + salinity + total_nitrogen + total_phosphorus + doc + secchi_depth + ph + dissolved_oxygen + s(days,k=20)")
 
 gam_env_otu1_dna <- gam(formula=model_otu1_dna, data=df_nonans_t)
 
