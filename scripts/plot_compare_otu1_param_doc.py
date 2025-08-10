@@ -309,7 +309,10 @@ def plot_diff_timescale_vs_amp():
     fig.subplots_adjust(bottom= 0.15)
     gs = gridspec.GridSpec(nrows=1, ncols=2)
 
-    legend_elements = [Line2D([0], [0], marker='o',color='w', markeredgecolor='k', label='Heterotroph', markerfacecolor='w', markeredgewidth=1.4, markersize=8)]
+    #legend_elements = [Line2D([0], [0], marker='o',color='w', markeredgecolor='k', label='Heterotroph', markerfacecolor='w', markeredgewidth=1.4, markersize=8)]
+    legend_elements = [Line2D([0], [0], marker='o',color='w', markeredgecolor=utils.dna_rna_color_dict['DNA'], label='Heterotroph', markerfacecolor=utils.dna_rna_color_dict['DNA'], markeredgewidth=1.4, markersize=8)]
+
+
 
     max_coeff = 0.95
 
@@ -351,7 +354,7 @@ def plot_diff_timescale_vs_amp():
 
             to_keep_idx = (diff_timescale_all/focal_otu_timescale) <= 0.05
             otu_label_het_all = numpy.asarray(otu_label_het_all)
-            print(data_type, otu_label_het_all[to_keep_idx])
+            #print(data_type, otu_label_het_all[to_keep_idx])
 
             #delta_phase = phase_all - focal_otu_phase
             # max delta can be +/- pi
@@ -435,8 +438,8 @@ if __name__ == "__main__":
     print("Running...")
 
 
-    param_dict = pickle.load(open(sine_parameter_utils.param_otu_mle_dict_path, "rb"))
-    gam_coeff_dict = utils.build_gam_coeff_dict()
+    #param_dict = pickle.load(open(sine_parameter_utils.param_otu_mle_dict_path, "rb"))
+    #gam_coeff_dict = utils.build_gam_coeff_dict()
 
     #print(param_dict['param_mean_mle']['DNA'])
 

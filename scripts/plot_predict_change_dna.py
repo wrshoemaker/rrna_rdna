@@ -396,8 +396,8 @@ if __name__ == "__main__":
 
     #make_null_predict_change_dict()
 
-    plot_predict_change_scatter()  
-    #plot_predict_change_null_hist()
+    #plot_predict_change_scatter()  
+    plot_predict_change_null_hist()
 
 
     #plot_predict_change_vs_temp_rho()

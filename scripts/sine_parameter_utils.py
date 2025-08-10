@@ -1713,7 +1713,7 @@ def plot_time_vs_clr_ratio(method='mle'):
 
             ax.scatter(days_rna_c, diff_rescaled_afd_c, s=8, alpha=1, c=utils.dna_rna_color_dict['ratio'], zorder=1)
             ax.set_xlabel("Time (days)", fontsize=10)
-            ax.set_ylabel("CLR-transformed abund., " + utils.rescaled_label_clr_dict['ratio'], fontsize=10)
+            ax.set_ylabel("Rescaled CLR-transformed abund., " + utils.rescaled_label_clr_dict['ratio'], fontsize=10)
             ax.set_title(otu_labels_subset[c], fontsize=11)
 
             #minor_days, major_days, major_labels
@@ -1944,5 +1944,7 @@ if __name__ == "__main__":
 
     #plot_residuals(data_type='DNA')
 
-    plot_rna_dna_resid_vs_delta_dna()
+    #plot_rna_dna_resid_vs_delta_dna()
+    
+    plot_time_vs_clr_ratio()
 

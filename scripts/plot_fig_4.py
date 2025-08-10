@@ -357,8 +357,6 @@ def old_plot():
 
 
 
-
-
     fig.subplots_adjust(hspace=0.2, wspace=0.2)
     fig_name = "%sfig4.png" % config.analysis_directory
     fig.savefig(fig_name, format='png', bbox_inches = "tight", pad_inches = 0.4, dpi = 600)
@@ -508,7 +506,7 @@ def plot_ratio_vs_delta_dna(rhogamma=0.7418095701816444):
 
 
     ax_scatter.set_xlabel("RNA:DNA at time " + r'$t$' + ', ' + r'$\phi_{\mathrm{photo}}(t)$', fontsize=10)
-    ax_scatter.set_ylabel("Per-day change in DNA, " + r'$\delta c_{i}^{\mathrm{DNA}} / \delta t $', fontsize=10)
+    ax_scatter.set_ylabel("Per-day change in DNA, " + r'$\delta c_{\mathrm{photo}}^{\mathrm{DNA}} / \delta t $', fontsize=10)
     ax_scatter.scatter(diff_dna_rna, delta_dna, s=8, alpha=1, c='k', zorder=2)
     slope, intercept, r_value, p_value, std_err = stats.linregress(diff_dna_rna, delta_dna)
 
@@ -525,6 +523,7 @@ def plot_ratio_vs_delta_dna(rhogamma=0.7418095701816444):
     ax_scatter.legend(loc='upper left',fontsize=9)
     ax_scatter.text(0.26, 0.81, r'$\rho = $' + str(round(r_value, 3)), fontsize=11, ha='center', va='center', transform=ax_scatter.transAxes)
     ax_scatter.text(0.26, 0.72, r'$P = $' + str(round(p_value, 5)), fontsize=11, ha='center', va='center', transform=ax_scatter.transAxes)
+    ax_scatter.set_title(focal_otu_formatted, fontsize=11)
 
     # histogram
     # optimal slope 
@@ -543,7 +542,7 @@ def plot_ratio_vs_delta_dna(rhogamma=0.7418095701816444):
     ax_hist.hist(sine_r_value_null_0, bins=50, ls=':', lw=2, color=utils.dna_rna_color_dict['ratio'], histtype='step', density=True, alpha=1, zorder=1, label='Independent RNA and DNA')
 
     ax_hist.axvline(x=r_value, lw=3, ls='--', c='k', zorder=2, label='Observed')
-    ax_hist.set_title(focal_otu_formatted + '\nNull: Gamma with oscillating ' + r'$K_{i}(t)$', fontsize=11)
+    ax_hist.set_title('Null: gamma with oscillating ' + r'$K_{\mathrm{photo}}(t)$', fontsize=11)
     ax_hist.legend(loc='upper left', fontsize=9)
     ax_hist.set_xlabel("Correlation between " + r'$\phi_{\mathrm{photo}}(t)$' + ' and ' + r'$\frac{\delta c_{\mathrm{photo}}^{\mathrm{DNA}}}{\delta t}$', fontsize=10)
     ax_hist.set_ylabel("Probability density", fontsize=10)
@@ -565,6 +564,6 @@ if __name__ == "__main__":
     #sine_slope_ratio_vs_dna_w_corr_null()
     #plot_ratio_vs_dna()
 
-    plot_slope_delta_null(make_dict=False)
+    #plot_slope_delta_null(make_dict=False)
 
-    #plot_ratio_vs_delta_dna()
+    plot_ratio_vs_delta_dna()

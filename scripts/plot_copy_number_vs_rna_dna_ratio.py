@@ -52,6 +52,8 @@ gs = gridspec.GridSpec(nrows=1, ncols=1)
 ax = fig.add_subplot(gs[0, 0])
 
 
+print(mean_ratio_all)
+
 
 ax.scatter(rrna_copy_number, mean_ratio_all, s=25, alpha=1, color='k', zorder=2, label='One OTU')
 
