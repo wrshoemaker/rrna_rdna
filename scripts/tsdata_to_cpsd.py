@@ -419,6 +419,7 @@ def lag_null_distribution(x, y, S_shape, freqs, nfft, window, noverlap, fs, n_su
     
     n_samples = len(x)
     time_lags = []
+    scaled_time_lags = []
 
     X_fft = numpy.fft.fft(x)
     
@@ -431,7 +432,7 @@ def lag_null_distribution(x, y, S_shape, freqs, nfft, window, noverlap, fs, n_su
         phases[-(n_samples//2)+1:] = -random_phases[::-1]  # Hermitian symmetry
         x_surr = numpy.fft.ifft(amp * numpy.exp(1j * phases)).real
 
-        # Compute CPSD (can reuse your cpsd_welch_matlab function)
+        # Compute null CPSD
         S_surr = cpsd_welch_matlab(numpy.column_stack([x_surr, y]), n=2, h=S_shape[2], nfft=nfft, window=window, noverlap=noverlap, fs=fs)
         S_xy_surr = S_surr[0,1,:]
         
@@ -446,9 +447,16 @@ def lag_null_distribution(x, y, S_shape, freqs, nfft, window, noverlap, fs, n_su
         mask = coh_surr > 0.3
         avg_lag_surr = numpy.nanmean(time_lag_surr[mask])
         #avg_lag_surr = numpy.nanmean(time_lag_surr)
-        time_lags.append(avg_lag_surr)
 
-    return numpy.array(time_lags)
+        mask_scaled = (~numpy.isnan(time_lag_surr))*mask  
+        avg_lag_scaled_coh_xy = numpy.real(sum((time_lag_surr[mask_scaled]) * (coh_surr[mask_scaled])) / sum(coh_surr[mask_scaled]))
+
+        time_lags.append(avg_lag_surr)
+        scaled_time_lags.append(avg_lag_scaled_coh_xy)
+
+
+
+    return numpy.array(time_lags), numpy.asarray(scaled_time_lags)
 
 
 

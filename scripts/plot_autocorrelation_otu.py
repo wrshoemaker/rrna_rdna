@@ -77,6 +77,7 @@ def make_autocorrelation_dict():
             days_i = numpy.asarray(days_i)
             
             afd_i_rescaled = (afd_i - param_mean_leastsq_i)/amp_leastsq_i
+
             autocorr_obs_i, delta_t_i = utils.calculate_autocorrelation(afd_i_rescaled, days_i)
 
             delta_t_inter = numpy.intersect1d(delta_t_i, delta_t_env)

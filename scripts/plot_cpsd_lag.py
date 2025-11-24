@@ -14,13 +14,27 @@ import sine_parameter_utils
 import tsdata_to_cpsd
 
 
-min_coh_xy = 0.3
-n_surr=1000
-
-
 param_dict = pickle.load(open(sine_parameter_utils.param_otu_mle_dict_path, "rb"))
 otu_labels = param_dict['otu_labels']
 otu_labels.sort()
+
+# channels
+#n = len(param_dict['data']['clr_afd']['DNA'][0])
+n = 2
+# frequency resolution
+fres = 128
+# MATLAB’s h = fres + 1              
+h = fres + 1 
+fs=1.0
+nfft = 2*(h-1)
+# window length
+window = int(len(param_dict['data']['clr_afd']['DNA'][0]) / 2)
+noverlap = 30
+min_coh_xy = 0.3
+n_surr=1000
+
+# target oscillation frequency (approx 0.0195 cycles/week) is at 5th frequency bin.
+
 
 
 fig = plt.figure(figsize = (20, 20))
@@ -45,17 +59,7 @@ for chunk_idx, chunk in enumerate(chunk_all):
         rna_dna = numpy.column_stack((afd_rna, afd_dna))
 
         # channels
-        n = rna_dna.shape[1]
-
-        # frequency resolution
-        fres = 128
-        # MATLAB’s h = fres + 1              
-        h = fres + 1 
-        fs=1.0
-        nfft = 2*(h-1)
-        # window length
-        window = int(rna_dna.shape[0] / 2)
-        noverlap = 30
+        #n = rna_dna.shape[1]
 
         S = tsdata_to_cpsd.cpsd_welch_matlab(rna_dna, n=n, h=h, nfft=nfft, window=window, noverlap=noverlap, fs=1.0)
         S_xy = S[0,1,:]
@@ -75,9 +79,14 @@ for chunk_idx, chunk in enumerate(chunk_all):
         mask = coh_xy > min_coh_xy
         avg_lag = numpy.nanmean(time_lag[mask])
 
-        print(avg_lag)
+        mask_scaled = (~numpy.isnan(time_lag))*mask        
+        avg_lag_scaled_coh_xy = numpy.real( sum((time_lag[mask_scaled]) * (coh_xy[mask_scaled])) / sum(coh_xy[mask_scaled]))
 
-        time_lags_null = tsdata_to_cpsd.lag_null_distribution(afd_rna, afd_dna, S.shape, freqs, nfft=nfft, window=window, noverlap=noverlap, fs=fs, n_surr=n_surr, min_coh_xy=min_coh_xy, seed=123456789)
+    
+        time_lags_null, scaled_time_lags_null = tsdata_to_cpsd.lag_null_distribution(afd_rna, afd_dna, S.shape, freqs, nfft=nfft, window=window, noverlap=noverlap, fs=fs, n_surr=n_surr, min_coh_xy=min_coh_xy, seed=123456789)
+
+        #print(scaled_time_lags_null[:15])
+
 
         ax.hist(time_lags_null, bins=20, density=True, histtype='step', alpha=1, lw=3, color='k', zorder=1, label='Null')
 

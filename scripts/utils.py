@@ -1137,6 +1137,7 @@ def calculate_autocorrelation(array, time, min_n_obs=10):
 
     rho_all = []
     delta_t_all = []
+    n_all = []
 
     autocorr_dict = {}
     for t in range(1, len(array)-min_n_obs+1):
@@ -1166,12 +1167,15 @@ def calculate_autocorrelation(array, time, min_n_obs=10):
         delta_t_all.append(delta_t_i)
         rho_all.append(rho_i)
 
+        n_all.append(len(autocorr_dict[delta_t_i]['array_t']))
+
     
     rho_all = numpy.asarray(rho_all)
     delta_t_all = numpy.asarray(delta_t_all)
+    n_all = numpy.asarray(n_all)
 
        
-    return rho_all, delta_t_all
+    return rho_all, delta_t_all, n_all
 
 
 
