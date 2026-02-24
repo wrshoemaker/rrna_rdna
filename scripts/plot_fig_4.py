@@ -11,6 +11,8 @@ from matplotlib import cm, colors, ticker
 from scipy import stats, signal
 import matplotlib.gridspec as gridspec
 from matplotlib.lines import Line2D
+import matplotlib.patches as mpatches
+
 
 import sine_parameter_utils
 
@@ -394,6 +396,7 @@ def plot_slope_delta_null(make_dict=False, n_iter=10000):
         slope_delta_null_dict['rho_interval'] = {}
 
         rhogamma_all = numpy.linspace(0, 0.95, endpoint=True, num=20)
+        #rhogamma_all = [1]
 
         for rhogamma in rhogamma_all:
 
@@ -492,7 +495,7 @@ def plot_slope_delta_null(make_dict=False, n_iter=10000):
 
 def plot_ratio_vs_delta_dna(rhogamma=0.7418095701816444):
 
-    slope_delta_null_dict = pickle.load(open(slope_delta_null_dict_path, "rb"))
+    #slope_delta_null_dict = pickle.load(open(slope_delta_null_dict_path, "rb"))
     
     diff_dna_rna = (clr_afd_rna - clr_afd_dna)[:-1]
     delta_dna = (clr_afd_dna[1:] - clr_afd_dna[:-1])/(days[1:] - days[:-1])
@@ -529,29 +532,49 @@ def plot_ratio_vs_delta_dna(rhogamma=0.7418095701816444):
     # optimal slope 
     sine_slope_null, sine_r_value_null = sine_slope_ratio_vs_dna_w_corr_null(k_dna, k_rna, sigma_dna, sigma_rna, rhogamma=rhogamma)
     sine_slope_null_0, sine_r_value_null_0 = sine_slope_ratio_vs_dna_w_corr_null(k_dna, k_rna, sigma_dna, sigma_rna, rhogamma=0)
+    sine_slope_null_1, sine_r_value_null_1 = sine_slope_ratio_vs_dna_w_corr_null(k_dna, k_rna, sigma_dna, sigma_rna, rhogamma=1)
 
-    p_value = sum(sine_slope_null > slope)/len(sine_slope_null)
-    p_value_0 = sum(sine_slope_null_0 > slope)/len(sine_slope_null_0)
+    #p_value = sum(sine_slope_null > slope)/len(sine_slope_null)
+    #p_value_0 = sum(sine_slope_null_0 > slope)/len(sine_slope_null_0)
 
-    p_value_r = sum(sine_r_value_null > r_value)/len(sine_r_value_null)
-    p_value_r_0 = sum(sine_r_value_null_0 > r_value)/len(sine_r_value_null_0)
+    #p_value_r = sum(sine_r_value_null > r_value)/len(sine_r_value_null)
+    #p_value_r_0 = sum(sine_r_value_null_0 > r_value)/len(sine_r_value_null_0)
 
-    print(p_value_r, p_value_r_0)
+    #print(p_value_r, p_value_r_0)
 
-    ax_hist.hist(sine_r_value_null, bins=50, lw=2, color=utils.dna_rna_color_dict['RNA'], histtype='step', density=True, alpha=1, zorder=1, label='Correlated RNA and DNA')
-    ax_hist.hist(sine_r_value_null_0, bins=50, ls=':', lw=2, color=utils.dna_rna_color_dict['ratio'], histtype='step', density=True, alpha=1, zorder=1, label='Independent RNA and DNA')
+    #ax_hist.hist(sine_r_value_null, bins=50, lw=2, color=utils.dna_rna_color_dict['RNA'], histtype='step', density=True, alpha=1, zorder=1, label='Inferred, ' + r'$\rho_{\delta \mathrm{RNA}, \delta \mathrm{DNA}} = $' + str(round(rhogamma, 3)))
+    #ax_hist.hist(sine_r_value_null_0, bins=50, ls=':', lw=2, color=utils.dna_rna_color_dict['ratio'], histtype='step', density=True, alpha=1, zorder=1, label='Zero, ' + r'$\rho_{\delta \mathrm{RNA}, \delta \mathrm{DNA}} = 0$')
+    #ax_hist.hist(sine_r_value_null_1, bins=50, ls=':', lw=2, color=utils.dna_rna_color_dict['ratio'], histtype='step', density=True, alpha=1, zorder=1, label='Perfect, ' + r'$\rho_{\delta \mathrm{RNA}, \delta \mathrm{DNA}} = 1$')
+
+    ax_hist.hist(sine_r_value_null, bins=50, ls='-', lw=15, color=utils.dna_rna_color_dict['RNA'], histtype='step', density=True, alpha=1, zorder=1)
+    ax_hist.hist(sine_r_value_null_0, bins=50, ls='-', lw=15, color='tab:purple', histtype='step', density=True, alpha=1, zorder=1)
+    ax_hist.hist(sine_r_value_null_1, bins=50, ls='-', lw=15, color='tab:green', histtype='step', density=True, alpha=1, zorder=1)
+
 
     ax_hist.axvline(x=r_value, lw=3, ls='--', c='k', zorder=2, label='Observed')
     ax_hist.set_title('Null: gamma with oscillating ' + r'$K_{\mathrm{photo}}(t)$', fontsize=11)
-    ax_hist.legend(loc='upper left', fontsize=9)
+    #ax_hist.legend(loc='upper left', fontsize=9)
     ax_hist.set_xlabel("Correlation between " + r'$\phi_{\mathrm{photo}}(t)$' + ' and ' + r'$\frac{\delta c_{\mathrm{photo}}^{\mathrm{DNA}}}{\delta t}$', fontsize=10)
     ax_hist.set_ylabel("Probability density", fontsize=10)
 
+    # custom legend
+
+    legend_handles = [
+    mpatches.Patch(facecolor=utils.dna_rna_color_dict['RNA'],   edgecolor='black', alpha=1, label='Inferred = ' + str(round(rhogamma, 3))),
+    mpatches.Patch(facecolor='tab:purple', edgecolor='black', alpha=1, label='Zero'),
+    mpatches.Patch(facecolor='tab:green',  edgecolor='black', alpha=1, label='One' )]
+
+    ax_hist.legend(handles=legend_handles, alignment='left', loc='upper left', title="Correlation b/w " + r'$\delta c_{\mathrm{photo}}^{\mathrm{RNA}} $' + ' and ' + r'$\delta c_{\mathrm{photo}}^{\mathrm{DNA}}$' , framealpha=1)
+    
+    ax_hist.set_ylim([0,20])
+    #ax_hist.set_yscale('log', base=10)
 
     fig.subplots_adjust(hspace=0.2, wspace=0.3)
     fig_name = "%sratio_vs_delta_dna.png" % config.analysis_directory
     fig.savefig(fig_name, format='png', bbox_inches = "tight", pad_inches = 0.4, dpi = 600)
     plt.close()
+
+
 
 
 
@@ -566,4 +589,7 @@ if __name__ == "__main__":
 
     #plot_slope_delta_null(make_dict=False)
 
+    #plot_slope_delta_null(make_dict=True)
     plot_ratio_vs_delta_dna()
+
+    

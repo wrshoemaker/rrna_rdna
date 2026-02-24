@@ -18,7 +18,7 @@ import pickle
 
 import simulation_utils
 
-legend_elements = [Line2D([0], [0], marker='o', color=utils.dna_rna_color_dict['DNA'], label='One OTU', markersize=5)]
+legend_elements = [Line2D([0], [0], marker='o', color=utils.dna_rna_color_dict['RNA'], label='One species', markersize=5)]
 
 
 method = 'mle'
@@ -159,17 +159,16 @@ for data_type_idx, data_type in enumerate(['DNA', 'RNA']):
 
     bins_mean_all_to_keep_no_nan = bins_mean_all_to_keep[(~numpy.isnan(bins_mean_all_to_keep)) & (~numpy.isnan(bins_occupancies))]
     bins_occupancies_no_nan = bins_occupancies[(~numpy.isnan(bins_mean_all_to_keep)) & (~numpy.isnan(bins_occupancies))]
-    ax_data_rescaled.scatter(bins_mean_all_to_keep_no_nan, bins_occupancies_no_nan, s=17, marker="x", c='k', zorder=4, label='Mean over OTUs')
+    ax_data_rescaled.scatter(bins_mean_all_to_keep_no_nan, bins_occupancies_no_nan, s=17, marker="x", c='k', zorder=4, label='Mean over species')
 
     rescaled_days_range = numpy.linspace(min(rescaled_days_all), max(rescaled_days_all), 1000)
     ax_data_rescaled.plot(rescaled_days_range, numpy.sin(rescaled_days_range), lw=1.5, c='k', label='Sine function (not a fit)', zorder=3)
 
     ax_data_rescaled.set_xlim([0, 50])
 
-    if data_type_idx == 0:
-        ax_data_rescaled.legend(loc='upper left', fontsize=6)
-
-        ax_data.legend(handles=legend_elements, loc='upper left', fontsize=6)
+    #if data_type_idx == 0:
+    ax_data_rescaled.legend(loc='lower center', fontsize=6)
+    ax_data.legend(handles=legend_elements, loc='upper left', fontsize=6)
 
 
 

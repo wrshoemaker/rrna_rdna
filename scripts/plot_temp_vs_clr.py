@@ -65,11 +65,45 @@ minor_days, major_days, major_labels = utils.get_seasonal_tick_labels()
 ax.set_xlim([0, max(days_dna)])
 ax.set_xticks(minor_days, minor=True)
 ax.set_xticks(major_days, minor=False)
-ax.set_xticklabels(major_labels, minor=False, fontsize=7)
-ax.legend(loc='lower left')
+ax.set_xticklabels(major_labels, minor=False, fontsize=10)
+
+# custom legend
+
+custom_lines = [
+    Line2D([0], [0], color=utils.dna_rna_color_dict['DNA'], lw=2.5),
+    Line2D([0], [0], color=utils.dna_rna_color_dict['RNA'], lw=2.5),
+]
+
+
+ax.set_zorder(2)
+ax_temp.set_zorder(1)
+ax.patch.set_visible(False)
+
+
+labels = ['DNA', 'RNA']
+
+# NOT transparent
+# background color
+legend = ax.legend(
+    custom_lines,
+    labels,
+    loc='lower left',
+    prop={'weight': 'bold', 'size':14},
+    frameon=True, 
+    framealpha=1.0,    
+    facecolor='white', 
+    edgecolor='black'
+)
+
+legend.set_zorder(100)
+
+for text, label in zip(legend.get_texts(), labels):
+    text.set_color(utils.dna_rna_color_dict[label])
+
+
+#ax.legend(loc='lower left', fontsize=18)
 ax.tick_params(axis='y', labelsize=7)
 ax_temp.tick_params(axis='y', labelsize=7)
-
 
 
 fig.subplots_adjust(hspace=0.35, wspace=0.40)

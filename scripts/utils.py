@@ -17,7 +17,7 @@ from statsmodels.stats.multitest import fdrcorrection
 numpy.random.seed(123456789)
 
 
-
+gam_path = '%sgam_env_analysis_only_time.csv' % config.data_directory
 sub_plot_labels = ['a','b','c', 'd','e','f', 'g','h','i', 'j','k','l', 'm','n','o', 'p','q','r']
 
 
@@ -49,6 +49,8 @@ taxonomic_ranks = ['domain', 'phylum', 'class', 'order', 'family', 'genus', 'spe
 
 
 env_variable_all = ['water_temp', 'specific_conductivity', 'dissolved_oxygen', 'salinity', 'secchi_depth', 'ph', 'air_temperature', 'total_nitrogen', 'total_phosphorus', 'doc']
+env_variable_to_plot = ['water_temp', 'specific_conductivity', 'dissolved_oxygen', 'salinity', 'secchi_depth', 'ph', 'total_nitrogen', 'total_phosphorus', 'doc']
+
 
 env_variable_label_dict = {'water_temp': 'Water temperature (°C)', 'specific_conductivity': 'Specific conductivity (mS/cm)', 
                             'dissolved_oxygen': 'Dissolved oxygen (mg/L)', 'salinity': 'Salinity (PSS)',
@@ -633,6 +635,64 @@ def predict_occupancy(s_by_s, species, totreads=numpy.asarray([])):
 
 
     return occupancies, predicted_occupancies, mad, beta, species
+
+
+
+
+
+
+def predict_occupancy_provide_mean(s_by_s_mean, s_by_s_occupancy):
+
+    # get squared inverse cv
+    # assume that entries are read counts.
+
+    totreads_mean = s_by_s_mean.sum(axis=0)
+    totreads_occupancy = s_by_s_occupancy.sum(axis=0)
+
+    occupancies_1 = numpy.where(s_by_s_mean > 0, 1, 0).sum(axis=1) / s_by_s_mean.shape[1]
+    occupancies_2 = numpy.where(s_by_s_occupancy > 0, 1, 0).sum(axis=1) / s_by_s_occupancy.shape[1]
+
+
+    # calculate mean and variance excluding zeros
+    # tf = mean relative abundances
+    tf = []
+    for afd in s_by_s_mean:
+        afd_no_zeros = afd[afd>0]
+        tf.append(numpy.mean(afd_no_zeros/ totreads_mean[afd>0]))
+
+    tf = numpy.asarray(tf)
+    # go through and calculate the variance for each species
+
+    tvpf_list = []
+    for afd in s_by_s_mean:
+        afd_no_zeros = afd[afd>0]
+        tvpf_list.append(numpy.mean(  (afd_no_zeros**2 - afd_no_zeros) / (totreads_mean[afd>0]**2) ))
+
+    tvpf = numpy.asarray(tvpf_list)
+
+    f = occupancies_1*tf
+    vf= occupancies_1*tvpf
+
+    vf = vf - (f**2)
+    beta = (f**2)/vf
+    theta = f/beta
+
+    #predicted_occupancies_diff = []
+    predicted_occupancies_1 = []
+    predicted_occupancies_2 = []
+    # each species has it's own beta and theta, which is used to calculate predicted occupancy
+    for beta_i, theta_i in zip(beta,theta):
+        predicted_occupancies_1.append(1 - numpy.mean( ((1+theta_i*totreads_mean)**(-1*beta_i ))   ))
+        predicted_occupancies_2.append(1 - numpy.mean( ((1+theta_i*totreads_occupancy)**(-1*beta_i ))   ))
+
+    predicted_occupancies_1 = numpy.asarray(predicted_occupancies_1)
+    predicted_occupancies_2 = numpy.asarray(predicted_occupancies_2)
+
+    rel_s_by_s = (s_by_s_mean/s_by_s_mean.sum(axis=0))
+    mad = numpy.mean(rel_s_by_s, axis=1)
+    
+    return occupancies_1, occupancies_2, predicted_occupancies_1, predicted_occupancies_2, mad, beta
+
 
 
 
@@ -1297,6 +1357,72 @@ def get_confidence_hull(x, y, conf=0.95):
 
 
 
+
+def load_gam():
+
+    s_by_s, otu_labels, samples = load_count_data()
+    metadata_dict = build_metadata_dict()
+    sample_type = numpy.asarray([metadata_dict[s]['sample_type'] for s in samples])
+    env_var_dict = {}
+    for env_variable_idx, env_variable in enumerate(env_variable_all):
+        
+        env_variable_array = numpy.asarray([metadata_dict[s][env_variable] for s in samples[(sample_type=='RNA')]])
+        # remove nans
+        env_to_keep_idx = (~numpy.isnan(env_variable_array))
+        env_variable_array_clean = env_variable_array[env_to_keep_idx]
+        env_var_dict[env_variable] = numpy.std(env_variable_array_clean)
+
+
+    
+    gam_dict = {}
+    gam_file = open(gam_path, 'r')
+    gam_header = gam_file.readline().strip().split(',')
+    for line in gam_file:
+
+        if 'Otu000001' not in line:
+            continue
+
+        line = line.strip().split(',')
+        data_type = line[0].split('_', 1)[1]
+
+        stat = line[1]
+
+        for env_variable_idx in range(2, len(line)):
+
+            env_variable = gam_header[env_variable_idx]
+
+            if env_variable not in gam_dict:
+                gam_dict[env_variable] = {}
+
+            if data_type not in gam_dict[env_variable]:
+                gam_dict[env_variable][data_type] = {}
+                    
+            gam_dict[env_variable][data_type][stat] = float(line[env_variable_idx])
+
+            # rescale
+            if stat == 'coeff':
+                gam_dict[env_variable][data_type]['coeff_scaled'] = float(line[env_variable_idx]) * env_var_dict[env_variable]
+            else:
+                gam_dict[env_variable][data_type]['p_value'] = float(line[env_variable_idx])
+
+    gam_file.close()
+
+    #print(gam_dict.keys())
+
+    # FDR correction
+    env_variable_all_ = list(gam_dict.keys())
+    for data_type in ['dna', 'rna', 'rna_dna']:
+
+        p_value_all = numpy.asarray([gam_dict[e][data_type]['p_value'] for e in env_variable_all_])
+        p_value_all_corrected = fdrcorrection(p_value_all, alpha=0.05, method='indep', is_sorted=False)[1]
+
+        for env_variable_idx, env_variable in enumerate(env_variable_all_):
+
+            gam_dict[env_variable][data_type]['p_value_fdr'] = p_value_all_corrected[env_variable_idx]
+
+
+
+    return gam_dict
 
 
 

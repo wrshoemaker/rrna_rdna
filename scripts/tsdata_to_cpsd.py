@@ -8,18 +8,9 @@ from scipy.signal import welch, csd, windows
 
 
 def demean(X, normalize=False):
-    '''
-    Temporally demean time series data.
-    Python port of demean.m
-    https://osf.io/hvnjt/overview
-    
-    Input
-    X: ndarray, shape (n_channels, n_timepoints, n_trials), multi-trial time series data.
-    normalize: bool, normalize variance to 1 (default: False)
-    
-    Output
-    Y: ndarray, demeaned (optionally normalized) time series
-    '''
+
+    # Python port of demean.m
+    # https://osf.io/hvnjt/overview
 
     n, m, N = X.shape
     Y = X.reshape(n, m*N)
@@ -28,29 +19,26 @@ def demean(X, normalize=False):
     if normalize:
     
         Y = Y / numpy.std(Y, axis=1, keepdims=True)
+    
     return Y.reshape(n, m, N)
 
 
 
 
 def tsdata_to_cpsd(X, fres, method='WELCH', window=None, noverlap=None, nw=3, ntapers=None):
-    '''
-    Estimate cross-power spectral density from time series data.
-    Python port of tsdata_to_cpsd.m
-    https://osf.io/hvnjt/overview
-    
-    Input
-    X: ndarray, shape (n_channels, n_timepoints, n_trials)
-    fres: int, frequency resolution
-    method: str, 'WELCH' or 'MT' (multi-taper)
-    window: int, window length (default: min(time series length, 2*fres))
-    noverlap: int, window overlap size (default: window/2)
-    nw: float, time-bandwidth product (multi-taper only)
-    ntapers : int, number of tapers (multi-taper only)
-        
-    Output
-    S: ndarray, cross-power spectral density matrix, shape (n_channels, n_channels, n_freqs)
-    '''
+    # Estimate cross-power spectral density from time series data
+    # Python port of tsdata_to_cpsd.m
+    # https://osf.io/hvnjt/overview
+
+    # X = ndarray, shape (n_channels, n_timepoints, n_trials)
+    # fres: int, frequency resolution
+    # 'WELCH' or 'MT' (multi-taper)
+    # window: window length
+    # noverlap:  window overlap size 
+    # nw: time-bandwidth product
+    # ntapers: number of tapers 
+
+    # S: cross-power spectral density matrix, shape (n_channels, n_channels, n_freqs)
     
     n, m, N = X.shape
     X = demean(X)
@@ -135,40 +123,30 @@ def cpsd_welch(X, n, h, window, noverlap):
 
 
 def cpsd_welch_matlab(X, n, h, nfft, window, noverlap, fs=1.0):
-    '''
-    MATLAB-style cross-power spectral density using Welch method.
+    # CPSD using Welch method
+    # matlab cpsd calculated using a window, overlap, and FFT length.
+    # using scipy.signal.csd for similar result
 
-    # matlab cpsd computes cpsd using a window, overlap, and FFT length.
-    # scipy.signal.csd in Python does same, with similar arguments (nperseg, noverlap, nfft, window)
+    # matplab cpsd returns values normalized by sampling frequency and window 
+    # integrating that PSD gives signal variance.
 
-    ### Scaling
-    #MATLAB cpsd returns values normalized by sampling frequency and the window so that integrating the PSD gives signal variance.
-    #SciPy csd normalizes, but scaling can differ depending on the scaling argument ('density' or 'spectrum').
+    # scipy csd normalizes. scaling-dependent argument ('density', 'spectrum')
+    # density = power per Hz (matlab default).
 
-    #density = power per Hz (like MATLAB’s default).
-    #spectrum = power, but not per Hz (slightly different).
+    # matlab uses hamming window
+    # scipy: set  window='hamming'
 
-    ### Windowing 
-    # MATLAB: default hamming window.
-    #SciPy: default hann window. Set window='hamming'
+    # sampling frequency matches (fs in Python)
 
-    # same:
-    # window type and length
-    # nfft / frequency resolution
-    # scaling (usually 'density').
-    # sampling frequency matches (fs in Python).
-    
-    Input
-    X: ndarray, shape (time, n_channels), single-trial time series data
-    n: int, number of channels
-    h: int, number of frequency bins (MATLAB uses nfft=2*(h-1), I think...) 
-    window : int, window length
-    noverlap : int, overlap between windows
-    fs: float, sampling frequency (default 1), necessary for exact frequency axis
+    # X: shape (time, n_channels), single-trial time series data
+    # n: # channels
+    # h: # frequency bins
+    # noverlap: overlap between windows
+    # fs: sampling frequency 
 
-    Output
-    S: ndarray, shape (n, n, h), cross-power spectral density matrix
-    '''
+    # Output
+    # Sshape: (n, n, h), cross-power spectral density matrix
+
 
     # definition used by MATLAB
     #nfft = 2*(h-1)
@@ -204,18 +182,16 @@ def cpsd_welch_matlab(X, n, h, nfft, window, noverlap, fs=1.0):
 
 
 def compute_integrated_coherence(S, freqs):
-    '''
-    Compute the coherence matrix and its integral.
-    cpsd_eco.m
-    
-    Input
-    S: numpy.ndarray, cross-power spectral density (channels, channels, n_freqs)
-    freqs: numpy.ndarray, frequency vector
-    
-    Output
-    int_cohMat_welch: numpy.ndarray, integrated coherence (single-sided)
-    int_cohMat_welch_two_side : numpy.ndarray, integrated coherence (two-sided)
-    '''
+
+    # Compute the coherence matrix and its integral following cpsd_eco.m
+    # S: cross-power spectral density (channels, channels, n_freqs)
+    # freqs: frequency vector
+
+    # Output
+    # int_cohMat_welch: integrated coherence (single-sided)
+    # int_cohMat_welch_two_side:  integrated coherence (two-sided)
+
+
     n_channels = S.shape[0]
     cohMat_welch = numpy.zeros_like(S, dtype=float)
     
@@ -239,34 +215,18 @@ def compute_integrated_coherence(S, freqs):
 def phase_randomized_coherence_null(x, y, fs=1.0, window=None, noverlap=None, nfft=None, n_surr=1000):
 
     #n, h, fs=1.0
-    """
-    Generate a null distribution for magnitude-squared coherence between two signals
-    using phase-randomized surrogates of x.
+    # null distribution for magnitude-squared coherence between two signals using phase-randomized surrogates of x.
 
-    Parameters
-    ----------
-    x, y : ndarray, shape (n_samples,)
-        Input time series (single trial)
-    fs : float
-        Sampling frequency (default 1.0)
-    window : int or None
-        Window length for Welch (default: entire signal)
-    noverlap : int or None
-        Overlap for Welch
-    nfft : int or None
-        FFT length for Welch
-    n_surr : int
-        Number of surrogate iterations
+    # x,y: shape (n_samples,) time series
+    # fs: sampling frequency
+    # window: window length for Welch test
+    # noverlap
+    # nfft: FFT length for Welch
+    # n_surr: # surrogate iterations
 
-    Returns
-    -------
-    freqs : ndarray
-        Frequency vector
-    C_null : ndarray, shape (n_surr, n_freqs)
-        Surrogate coherence values
-    C_thresh : ndarray
-        95th percentile threshold at each frequency
-    """
+    # freqs: frequency vector
+    # C_null: Surrogate coherence values
+    # C_thresh: 95th percentile threshold at each frequency
 
     n_samples = len(x)
     if window is None:
@@ -291,7 +251,8 @@ def phase_randomized_coherence_null(x, y, fs=1.0, window=None, noverlap=None, nf
         idx = numpy.arange(1, N//2)
         random_phases = numpy.random.uniform(-numpy.pi, numpy.pi, len(idx))
         phases[idx] = random_phases
-        phases[-idx] = -random_phases[::-1]  # preserve conjugate symmetry
+        # preserve conjugate symmetry
+        phases[-idx] = -random_phases[::-1]  
 
         Xf_surr = numpy.abs(Xf) * numpy.exp(1j*phases)
         x_surr = numpy.fft.ifft(Xf_surr).real
@@ -313,24 +274,17 @@ def phase_randomized_coherence_null(x, y, fs=1.0, window=None, noverlap=None, nf
 
 
 def coherence_null_from_cpsd(S, n_surr=1000, seed=None):
-    """
-    Generate a null distribution for magnitude-squared coherence using phase-randomized surrogates
-    from an existing CPSD matrix S (n_channels, n_channels, n_freqs).
 
-    Parameters
-    ----------
-    S : ndarray, shape (n_channels, n_channels, n_freqs)
-        Cross-power spectral density matrix
-    n_surr : int
-        Number of surrogate iterations
-    seed : int or None
-        Random seed for reproducibility
+    # null distribution for magnitude-squared coherence using phase-randomized surrogates
+    # uses existing CPSD matrix S (n_channels, n_channels, n_freqs)
 
-    Returns
-    -------
-    C_thresh : ndarray, shape (n_channels, n_channels, n_freqs)
-        95th percentile coherence threshold at each frequency
-    """
+    # Cross-power spectral density matrix
+    # S: shape (n_channels, n_channels, n_freqs)
+
+    # Returns
+    #  95th percentile coherence threshold at each frequency
+    # C_thresh:  shape (n_channels, n_channels, n_freqs)
+
 
     rng = numpy.random.default_rng(seed)
     n_channels, _, n_freqs = S.shape
@@ -356,7 +310,8 @@ def coherence_null_from_cpsd(S, n_surr=1000, seed=None):
                 S_surr = Amp[i,:] * Amp[j,:] * numpy.exp(1j * (phases[i,:] - phases[j,:]))
                 C_null[k, i, j, :] = numpy.abs(S_surr)**2 / (Amp[i,:]**2 * Amp[j,:]**2)
                 if i != j:
-                    C_null[k, j, i, :] = C_null[k, i, j, :]  # symmetric
+                    # symmetric.......
+                    C_null[k, j, i, :] = C_null[k, i, j, :]
 
     # 95th percentile across surrogates
     C_thresh = numpy.percentile(C_null, 95, axis=0)
@@ -366,14 +321,8 @@ def coherence_null_from_cpsd(S, n_surr=1000, seed=None):
 
 
 def phase_randomized_coherence_null(x, y, fs=1.0, window=64, noverlap=None, nfft=None, n_surr=1000, seed=None):
-    '''
-    Compute null distribution of magnitude-squared coherence via phase randomization.
 
-    Returns
-    freqs: frequency vector
-    C_null: array of shape (n_surr, n_freqs)
-    C_thresh: 95% threshold at each frequency
-    '''
+    # Calculate null distribution of magnitude-squared coherence via phase randomization
 
     if seed is not None:
         numpy.random.seed(seed)
@@ -397,7 +346,8 @@ def phase_randomized_coherence_null(x, y, fs=1.0, window=64, noverlap=None, nfft
         amp = numpy.abs(X_fft)
         random_phases = numpy.random.uniform(0, 2*numpy.pi, n_samples//2 - 1)
         phases[1:n_samples//2] = random_phases
-        phases[-(n_samples//2)+1:] = -random_phases[::-1]  # Hermitian symmetry
+        # Hermitian symmetry
+        phases[-(n_samples//2)+1:] = -random_phases[::-1]
         X_surr = numpy.fft.ifft(amp * numpy.exp(1j * phases)).real
         
         # Compute coherence with y
@@ -481,10 +431,14 @@ if __name__ == "__main__":
 
     #S, freqs = cpsd_welch_matlab(rna_dna, fres=fres, fs=fs)
 
-    n = rna_dna.shape[1]        # number of channels
-    fres = 128                # frequency resolution
-    h = fres + 1              # MATLAB’s h = fres + 1
-    #window = 256              # window length
+    # number of channels
+    n = rna_dna.shape[1]
+    # frequency resolution
+    fres = 128
+    # MATLAB’s h = fres + 1
+    h = fres + 1
+    #window = 256
+    # window length
     fs=1.0
     nfft = 2*(h-1)
     window = int(rna_dna.shape[0] / 2)
@@ -494,7 +448,6 @@ if __name__ == "__main__":
     S = cpsd_welch_matlab(rna_dna, n=n, h=h, nfft=nfft, window=window, noverlap=noverlap, fs=1.0)
 
     # lag
-
     S_xy = S[0,1,:]
 
     # Phase spectrum (radians)

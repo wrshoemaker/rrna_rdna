@@ -50,7 +50,7 @@ ax_phase = fig.add_subplot(gs[0, 1])
 for ax_idx, ax_ in enumerate([ax_timescale, ax_phase, ax_amp]):
 
     ax_.set_ylabel('Probability density', fontsize=12)
-    ax_.text(-0.095, 1.06, utils.sub_plot_labels[ax_idx], fontsize=10, fontweight='bold', ha='center', va='center', transform=ax_.transAxes)
+    ax_.text(-0.095, 1.06, utils.sub_plot_labels[ax_idx], fontsize=16, fontweight='bold', ha='center', va='center', transform=ax_.transAxes)
     #ax_amp.text(-0.095, 1.06, utils.sub_plot_labels[1], fontsize=10, fontweight='bold', ha='center', va='center', transform=ax_amp.transAxes)
     #ax_phase.text(-0.095, 1.06, utils.sub_plot_labels[2], fontsize=10, fontweight='bold', ha='center', va='center', transform=ax_phase.transAxes)
 

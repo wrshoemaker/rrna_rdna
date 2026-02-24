@@ -38,7 +38,6 @@ for data_type_idx, data_type in enumerate(['DNA', 'RNA']):
     rel_s_by_s_data_afd_idx = (numpy.sum(rel_s_by_s_data>0, axis=1)/len(n_reads)) >= min_occupany_afd
     rel_s_by_s_data_afd = rel_s_by_s_data[rel_s_by_s_data_afd_idx,:]
 
-
     ax_afd = plt.subplot2grid((3, 2), (0, data_type_idx))
     ax_mad = plt.subplot2grid((3, 2), (1, data_type_idx))
     ax_taylors = plt.subplot2grid((3, 2), (2, data_type_idx))
