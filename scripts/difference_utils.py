@@ -125,6 +125,7 @@ def fd_derivative(fx, x, n=1, m=2):
     --------
     fd_weights
     """
+    
     num_x = len(x)
     _assert(n < num_x, 'len(x) must be larger than n')
     _assert(num_x == len(fx), 'len(x) must be equal len(fx)')

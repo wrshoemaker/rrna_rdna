@@ -1,11 +1,14 @@
 rm(list = ls())
+rm()
 getwd()
 setwd("~/GitHub/rrna_rdna/")
+
+detach("package:CausalGAM", unload=TRUE)
+detach("package:gam", unload=TRUE)
 
 library(mgcv)
 library(data.table)
 library(performance)
-
 
 set.seed(123456789)
 
@@ -78,7 +81,10 @@ write.table(x = matrix, file = "data/gam_env_analysis_only_time.csv", sep = ',',
 
 # test OTU1
 #model_otu1_dna <- as.formula("Otu000004_dna ~ water_temp + specific_conductivity + salinity + total_nitrogen + total_phosphorus + doc + secchi_depth + ph + dissolved_oxygen + s(days,k=8) + s(day_of_year, bs = 'cc')")
-model_otu1_dna <- as.formula("Otu000001_rna ~ water_temp + specific_conductivity + salinity + total_nitrogen + total_phosphorus + doc + secchi_depth + ph + dissolved_oxygen + s(days,k=20)")
+#model_otu1_dna <- as.formula("Otu000001_rna ~ water_temp + specific_conductivity + salinity + total_nitrogen + total_phosphorus + doc + secchi_depth + ph + dissolved_oxygen +  mgcv::s(days,k=20)")
+model_otu1_dna <- as.formula("Otu000001_rna ~ water_temp + specific_conductivity + 
+    salinity + total_nitrogen + total_phosphorus + doc + secchi_depth + 
+    ph + dissolved_oxygen + s(days, k=20)")
 
 gam_env_otu1_dna <- gam(formula=model_otu1_dna, data=df_nonans_t)
 
@@ -87,6 +93,9 @@ gam.check(gam_env_otu1_dna)
 capture.output(gam.check(gam_env_otu1_dna))
 
 summary(gam_env_otu1_dna)
+
+concurvity(gam_env_otu1_dna, full = FALSE)
+
 
 #gam_env <- gam(formula=model, data=df_nonans_t)
 

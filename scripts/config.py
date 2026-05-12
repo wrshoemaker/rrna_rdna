@@ -11,3 +11,6 @@ from math import log10
 data_directory = os.path.expanduser("~/GitHub/rrna_rdna/data/")
 analysis_directory = os.path.expanduser("~/GitHub/rrna_rdna/analysis/")
 scripts_directory = os.path.expanduser("~/GitHub/rrna_rdna/scripts/")
+
+
+n_fna_characters = 80

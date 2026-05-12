@@ -2,6 +2,7 @@
 import config 
 from datetime import datetime
 import numpy
+import re
 #import pandas
 import math
 import sympy
@@ -45,7 +46,9 @@ data_type_all = ['DNA', 'RNA', 'ratio']
 env_variables_all = ['water_temp', 'specific_conductivity', 'dissolved_oxygen', 'salinity', 'secchi_depth', 'ph']
 
 
-taxonomic_ranks = ['domain', 'phylum', 'class', 'order', 'family', 'genus', 'species']
+#taxonomic_ranks = ['domain', 'phylum', 'class', 'order', 'family', 'genus', 'species']
+taxonomic_ranks = ['kingdom', 'phylum', 'class', 'order', 'family', 'genus', 'species']
+
 
 
 env_variable_all = ['water_temp', 'specific_conductivity', 'dissolved_oxygen', 'salinity', 'secchi_depth', 'ph', 'air_temperature', 'total_nitrogen', 'total_phosphorus', 'doc']
@@ -105,9 +108,42 @@ def make_colormap(sample_type, n_obs, lower_linspace_bound=0.1):
 
 
 
+
+def parse_time(line):
+
+    # Extract time of day and hours since midnight 
+    # Returns (time_str, hours_since_midnight) or (None, None)
+
+    # Normalize semicolons used as colons (e.g. "19;19").......
+    line_norm = re.sub(r'(\d{1,2});(\d{2})', r'\1:\2', line)
+
+    # Try 12-hour format first: 10:00 AM, 2:45 PM
+    match = re.search(r'\b(\d{1,2}):(\d{2})\s*(AM|PM)\b', line_norm, re.IGNORECASE)
+    if match:
+        h, m, meridiem = int(match.group(1)), int(match.group(2)), match.group(3).upper()
+        if meridiem == 'PM' and h != 12:
+            h += 12
+        elif meridiem == 'AM' and h == 12:
+            h = 0
+        hours = h + m / 60
+        return f"{match.group(0)}", hours
+
+    # Try 24-hour format: 13:22, 08:26, 15:00
+    match = re.search(r'\b([01]?\d|2[0-3]):([0-5]\d)\b', line_norm)
+    if match:
+        h, m = int(match.group(1)), int(match.group(2))
+        hours = h + m / 60
+        return f"{match.group(0)}", hours
+
+    return None, None
+
+
+
 def build_metadata_dict():
 
-    file_ = open('%sdesign.csv' % config.data_directory, 'r')
+    # change for ASVs
+    #file_ = open('%sdesign.csv' % config.data_directory, 'r')
+    file_ = open('%ssra_metadata_annotated.csv' % config.data_directory, 'r')
     file_header = file_.readline()
     
     metadata_dict = {}
@@ -116,8 +152,10 @@ def build_metadata_dict():
 
         line = line.strip().split(',')
 
-        sample = line[0].strip('"')
-        sample_type = line[1].strip('"')
+        #sample = line[0].strip('"')
+        sample = line[11].strip('"')
+        #sample_type = line[1].strip('"')
+        sample_type = line[-1].strip('"')
 
         metadata_dict[sample] = {}
         metadata_dict[sample]['sample_type'] = sample_type
@@ -198,6 +236,13 @@ def build_metadata_dict():
         else:
             days = (datetime_object - metadata_dict['ULc001']['date']).days
 
+        time_of_day_str = line[-1]
+        # non-standardized format
+        time_str, hours_since_midnight = parse_time(time_of_day_str)
+
+        if hours_since_midnight is not None:
+            hours_since_midnight = float(hours_since_midnight)
+
         rna_sample = 'ULc' + sample
         dna_sample = 'ULD' + sample
 
@@ -214,6 +259,7 @@ def build_metadata_dict():
             metadata_dict[sample_i]['secchi_depth'] = secchi_depth
             metadata_dict[sample_i]['ph'] = ph
             metadata_dict[sample_i]['air_temperature'] = air_temperature
+            metadata_dict[sample_i]['hours_since_midnight'] = hours_since_midnight
 
     
     file_environment.close()
@@ -282,16 +328,12 @@ def build_metadata_dict():
             metadata_dict[sample_i]['total_phosphorus'] = total_phosphorus
 
 
-        
-
-
     file_environment_2.close()
-
 
     return metadata_dict
 
 
-def build_taxonomy_dict():
+def build_taxonomy_dict_otu():
 
     file_taxonomy = open('%sUL.bac.final.0.03.taxonomy' % config.data_directory, 'r')
     file_taxonomy_header = file_taxonomy.readline()
@@ -316,7 +358,34 @@ def build_taxonomy_dict():
     return taxonomy_dict
 
 
-def load_count_data():
+
+
+def build_taxonomy_dict_indiv(filepath):
+    taxonomy_dict = {}
+
+    with open(filepath, 'r') as f:
+        # skip header
+        header = f.readline()  
+
+        for line in f:
+            parts = line.strip().split('\t')
+            asv  = parts[0]
+            taxa = parts[1:]
+
+            taxonomy_dict[asv] = {rank: (t if t != '' else 'NA') for rank, t in zip(taxonomic_ranks, taxa)}
+
+    return taxonomy_dict
+
+
+def build_taxonomy_dict():
+    
+    taxonomy_dict = build_taxonomy_dict_indiv('%sdada2/DNA/taxa_DNA.txt' % config.data_directory)
+    taxonomy_dict.update(build_taxonomy_dict_indiv('%sdada2/RNA/taxa_RNA.txt' % config.data_directory))
+
+    return taxonomy_dict
+
+
+def load_count_data_otu():
 
     file_counts = open('%sUL.bac.final.shared' % config.data_directory, 'r')
     file_counts_header = file_counts.readline().strip().split('\t')
@@ -342,6 +411,59 @@ def load_count_data():
 
     return s_by_s, otu_labels, samples
     
+
+def load_seqtab(filepath):
+    
+    with open(filepath, 'r') as f:
+        lines = f.read().splitlines()
+
+    header = lines[0].split('\t')
+    # Header may or may not have a leading empty field before sample names
+    sample_names = header[1:] if header[0] == '' else header
+
+    asv_names = []
+    counts = []
+
+    for line in lines[1:]:
+        if not line.strip():
+            continue
+        parts = line.split('\t')
+        asv_names.append(parts[0])
+        counts.append([int(x) for x in parts[1:]])
+
+    count_matrix = numpy.array(counts, dtype=numpy.int64)
+
+    return count_matrix, asv_names, sample_names
+
+
+def load_count_data():
+
+    mat1, asvs1, samples1 = load_seqtab('%sdada2/DNA/seqtab_nochim_DNA.txt' % config.data_directory)
+    mat2, asvs2, samples2 = load_seqtab('%sdada2/RNA/seqtab_nochim_RNA.txt' % config.data_directory)
+
+    # ordered union
+    asv_names = list(dict.fromkeys(asvs1 + asvs2))
+    asv_index = {asv: i for i, asv in enumerate(asv_names)}
+
+    n_asvs    = len(asv_names)
+    n_samples = len(samples1) + len(samples2)
+    s_by_s = numpy.zeros((n_asvs, n_samples), dtype=numpy.int64)
+
+    for local_i, asv in enumerate(asvs1):
+        global_i = asv_index[asv]
+        s_by_s[global_i, :len(samples1)] = mat1[local_i]
+
+    #  offset columns by number of samples in file 1
+    col_offset = len(samples1)
+    for local_i, asv in enumerate(asvs2):
+        global_i = asv_index[asv]
+        s_by_s[global_i, col_offset:] = mat2[local_i]
+
+    sample_names = samples1 + samples2
+
+    return s_by_s, asv_names, sample_names
+
+
 
 
 def make_rrna_copy_dict(level="genus", reformat_labels=False):
@@ -1426,10 +1548,144 @@ def load_gam():
 
 
 
-#make_rrna_copy_dict()
+def make_asv_fasta(n_fna_characters=config.n_fna_characters):
 
-#load_count_data()
+    # creates fasta file from ASV names
+    asv_names = load_count_data()[1]
 
-#build_taxonomy_dict()
+    out_path = '%sasv.fna' % config.data_directory
+    out_file = open(out_path, 'w')
 
-#build_metadata_dict()
+    for asv_sequence in asv_names:
+
+        out_file.write('>%s\n' % asv_sequence)
+
+        for i in range(0, len(asv_sequence), n_fna_characters):
+            asv_sequence_i = asv_sequence[i : i + n_fna_characters]
+            out_file.write('%s\n' % asv_sequence_i)
+        out_file.write('\n')
+
+    out_file.close()
+
+
+
+
+
+class classFASTA:
+
+    # class to load FASTA file
+
+    def __init__(self, fileFASTA):
+        self.fileFASTA = fileFASTA
+
+    def readFASTA(self):
+        '''Checks for fasta by file extension'''
+        file_lower = self.fileFASTA.lower()
+        '''Check for three most common fasta file extensions'''
+        if file_lower.endswith('.txt') or file_lower.endswith('.fa') or \
+        file_lower.endswith('.fasta') or file_lower.endswith('.fna') or \
+        file_lower.endswith('.fasta') or file_lower.endswith('.frn') or \
+        file_lower.endswith('.faa') or file_lower.endswith('.ffn'):
+            with open(self.fileFASTA, "r") as f:
+                return self.ParseFASTA(f)
+        else:
+            print("Not in FASTA format.")
+
+    def ParseFASTA(self, fileFASTA):
+        '''Gets the sequence name and sequence from a FASTA formatted file'''
+        fasta_list=[]
+        for line in fileFASTA:
+            if line[0] == '>':
+                try:
+                    fasta_list.append(current_dna)
+            	#pass if an error comes up
+                except UnboundLocalError:
+                    #print "Inproper file format."
+                    pass
+                current_dna = [line.lstrip('>').rstrip('\n'),'']
+            else:
+                current_dna[1] += "".join(line.split())
+        fasta_list.append(current_dna)
+        '''Returns fasa as nested list, containing line identifier \
+            and sequence'''
+        return fasta_list
+    
+
+
+
+
+def clean_alignment(muscle_path, muscle_clean_path, min_n_sites=100, max_fraction_empty=0.8):
+
+    # removes all sites where the fraction of empty bases across ASVs is greater than max_fraction_empty (putatively uninformative)
+    # removes a sequencies with fewer than min_n_sites informative sites
+    frn_aligned = classFASTA(muscle_path).readFASTA()
+
+    n = len(frn_aligned)
+
+    frn_aligned_seqs = [x[1] for x in frn_aligned]
+    frn_aligned_seqs_names = [x[0] for x in frn_aligned]
+
+    frns = []
+    for site in zip(*frn_aligned_seqs):
+
+        fraction_empty = site.count('-')/n
+
+        if fraction_empty > max_fraction_empty:
+            continue
+
+        # skip site if it is uninformative
+        if len(set([s for s in site if s != '-'])) == 1:
+            continue
+
+        frns.append(site)
+
+    if len(frns) < min_n_sites:
+        exit()
+
+    clean_sites_list = zip(*frns)
+
+    frn_aligned_clean = open(muscle_clean_path, 'w')
+    for clean_sites_idx, clean_sites in enumerate(clean_sites_list):
+        clean_sites_species = frn_aligned_seqs_names[clean_sites_idx]
+        clean_sites_seq = "".join(clean_sites)
+
+        frn_aligned_clean.write('>%s\n' % clean_sites_species)
+
+        clean_sites_seq_split = [clean_sites_seq[i:i+config.n_fna_characters] for i in range(0, len(clean_sites_seq), config.n_fna_characters)]
+
+        for seq in clean_sites_seq_split:
+
+            frn_aligned_clean.write('%s\n' % seq)
+
+        frn_aligned_clean.write('\n')
+
+
+    frn_aligned_clean.close()
+
+
+
+
+if __name__ == "__main__":
+
+    #make_rrna_copy_dict()
+    #d = build_taxonomy_dict()
+    #metadata_dict = build_metadata_dict()
+    #s_by_s = load_count_data()[0]
+
+    #n_sampled = sum((numpy.sum(s_by_s>0, axis=1) / s_by_s.shape[1] ) ==1 )
+
+
+    m_dict = build_metadata_dict()
+    samples = list(m_dict.keys())
+
+    time = numpy.array([m_dict[s]['hours_since_midnight'] for s in samples], dtype=float) 
+    day_of_year = numpy.array([m_dict[s]['day_of_year'] for s in samples], dtype=float) 
+    to_keep_idx = ~numpy.isnan(time)
+    time_no_nan = time[to_keep_idx]
+    day_of_year_no_nan = day_of_year[to_keep_idx]
+
+    print(numpy.corrcoef(day_of_year_no_nan, time_no_nan))
+
+    print(len(time_no_nan)/len(time))
+
+    print(numpy.mean(time_no_nan), numpy.std(time_no_nan))

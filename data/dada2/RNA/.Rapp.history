@@ -1,0 +1,2 @@
+load("/Users/jaguilar/GitHub/rrna_rdna/data/dada2/RNA/seqtab_nochim_RNA.rds")
+load("/Users/jaguilar/GitHub/rrna_rdna/data/dada2/RNA/taxa_RNA.rds")
