@@ -5,6 +5,7 @@ import sine_parameter_utils
 import config
 import numpy
 from scipy.signal import welch, csd, windows
+from scipy import stats
 
 
 def demean(X, normalize=False):
@@ -363,7 +364,7 @@ def phase_randomized_coherence_null(x, y, fs=1.0, window=64, noverlap=None, nfft
 
 
 
-def lag_null_distribution(x, y, S_shape, freqs, nfft, window, noverlap, fs, n_surr=1000, min_coh_xy=0.3, seed=123456789):
+def lag_null_distribution(x, y, S_shape, freqs, nfft, window, noverlap, fs, n_surr=1000, min_coh_xy=0.3, seed=123456789, n=2):
 
     numpy.random.seed(seed)
     
@@ -379,14 +380,14 @@ def lag_null_distribution(x, y, S_shape, freqs, nfft, window, noverlap, fs, n_su
         amp = numpy.abs(X_fft)
         random_phases = numpy.random.uniform(0, 2*numpy.pi, n_samples//2 - 1)
         phases[1:n_samples//2] = random_phases
-        phases[-(n_samples//2)+1:] = -random_phases[::-1]  # Hermitian symmetry
+        # Hermitian symmetry
+        phases[-(n_samples//2)+1:] = -random_phases[::-1]
         x_surr = numpy.fft.ifft(amp * numpy.exp(1j * phases)).real
 
-        # Compute null CPSD
         S_surr = cpsd_welch_matlab(numpy.column_stack([x_surr, y]), n=2, h=S_shape[2], nfft=nfft, window=window, noverlap=noverlap, fs=fs)
         S_xy_surr = S_surr[0,1,:]
         
-        # Phase & time lag
+        # Phase and time lag
         phase_xy_surr = numpy.angle(S_xy_surr)
         freqs_nonzero = freqs.copy()
         freqs_nonzero[0] = numpy.nan
@@ -405,8 +406,116 @@ def lag_null_distribution(x, y, S_shape, freqs, nfft, window, noverlap, fs, n_su
         scaled_time_lags.append(avg_lag_scaled_coh_xy)
 
 
-
     return numpy.array(time_lags), numpy.asarray(scaled_time_lags)
+
+
+
+
+def amplitude_timescale_null_distribution_old(x, y, S_shape, freqs, nfft, window, noverlap, fs, n_surr=1000, min_coh_xy=0.3, seed=123456789, n=2):
+    
+    numpy.random.seed(seed)
+    log_amp_ratios = []
+    log_timescale_ratios = []
+
+    freqs_nonzero = freqs.copy()
+    freqs_nonzero[0] = numpy.nan
+    valid = ~numpy.isnan(freqs_nonzero)
+
+    for k in range(n_surr):
+        # circular shift of x ...... which changes Welch segments so S_xx varies
+        shift = numpy.random.randint(1, len(x))
+        x_surr = numpy.roll(x, shift)
+
+        S_surr = cpsd_welch_matlab(numpy.column_stack([x_surr, y]), n=n, h=S_shape[2], nfft=nfft, window=window, noverlap=noverlap, fs=fs)
+        S_xy_surr = S_surr[0, 1, :]
+        power_rna = numpy.real(S_surr[0, 0, :])
+        power_dna = numpy.real(S_surr[1, 1, :])
+
+        coh_surr = numpy.abs(S_xy_surr)**2 / (power_rna * power_dna)
+        mask = coh_surr > min_coh_xy
+
+        # coherence-weighted log power ratio
+        log_ratio = numpy.log(power_rna / power_dna)
+        mask_amp = (~numpy.isnan(log_ratio)) * mask
+        log_amp_ratios.append(numpy.real(numpy.sum(log_ratio[mask_amp] * coh_surr[mask_amp]) / numpy.sum(coh_surr[mask_amp])) if mask_amp.sum() > 0 else numpy.nan)
+
+        # coherence-weighted spectral centroids
+        mask_ts = valid * mask
+        if mask_ts.sum() > 0:
+            w_rna = power_rna[mask_ts] * coh_surr[mask_ts]
+            w_dna = power_dna[mask_ts] * coh_surr[mask_ts]
+            centroid_rna = numpy.sum(freqs[mask_ts] * w_rna) / numpy.sum(w_rna)
+            centroid_dna = numpy.sum(freqs[mask_ts] * w_dna) / numpy.sum(w_dna)
+            log_timescale_ratios.append(numpy.log(centroid_dna / centroid_rna))
+        else:
+            log_timescale_ratios.append(numpy.nan)
+
+    return numpy.array(log_amp_ratios), numpy.array(log_timescale_ratios)
+
+
+
+
+def amplitude_timescale_bootstrap(x, y, freqs, nfft, window, noverlap, fs, n_boot=1000, min_coh_xy=0.3, seed=123456789, n=2):
+    
+    numpy.random.seed(seed)
+    log_amp_ratios = []
+    log_timescale_ratios = []
+
+    freqs_nonzero = freqs.copy()
+    freqs_nonzero[0] = numpy.nan
+    valid = ~numpy.isnan(freqs_nonzero)
+
+    if isinstance(window, int):
+        seg_len = window
+    elif hasattr(window, '__len__'):
+        seg_len = len(window)
+    else:
+        seg_len = nfft
+
+    
+    step = seg_len - noverlap
+    n_samples = len(x)
+
+    # extract welch segments for each signal
+    starts = numpy.arange(0, n_samples - seg_len + 1, step)
+    # (n_segs, seg_len)
+    segs_x = numpy.array([x[s:s+seg_len] for s in starts])
+    segs_y = numpy.array([y[s:s+seg_len] for s in starts])
+    n_segs = len(starts)
+
+
+    for k in range(n_boot):
+        # rresample segments independently for RNA and DNA
+        idx_x = numpy.random.choice(n_segs, n_segs, replace=True)
+        idx_y = numpy.random.choice(n_segs, n_segs, replace=True)
+        x_boot = numpy.concatenate(segs_x[idx_x])[:n_samples]
+        y_boot = numpy.concatenate(segs_y[idx_y])[:n_samples]
+
+        S_boot = cpsd_welch_matlab(numpy.column_stack([x_boot, y_boot]), n=n, h=len(freqs), nfft=nfft, window=window, noverlap=noverlap, fs=fs)
+        power_rna = numpy.real(S_boot[0, 0, :])
+        power_dna = numpy.real(S_boot[1, 1, :])
+        coh_boot  = numpy.abs(S_boot[0,1,:])**2 / (power_rna * power_dna)
+        mask = coh_boot > min_coh_xy
+
+        # Amplitude
+        log_ratio = numpy.log(power_rna / power_dna)
+        mask_amp = (~numpy.isnan(log_ratio)) * mask
+        log_amp_ratios.append(numpy.real(numpy.sum(log_ratio[mask_amp] * coh_boot[mask_amp]) / numpy.sum(coh_boot[mask_amp])) if mask_amp.sum() > 0 else numpy.nan)
+
+        # timescale.....
+        mask_ts = valid * mask
+        if mask_ts.sum() > 0:
+            w_rna = power_rna[mask_ts] * coh_boot[mask_ts]
+            w_dna = power_dna[mask_ts] * coh_boot[mask_ts]
+            centroid_rna = numpy.sum(freqs[mask_ts] * w_rna) / numpy.sum(w_rna)
+            centroid_dna = numpy.sum(freqs[mask_ts] * w_dna) / numpy.sum(w_dna)
+            log_timescale_ratios.append(numpy.log(centroid_dna / centroid_rna))
+        else:
+            log_timescale_ratios.append(numpy.nan)
+
+
+    return numpy.array(log_amp_ratios), numpy.array(log_timescale_ratios)
+
 
 
 

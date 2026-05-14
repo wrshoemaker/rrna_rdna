@@ -15,7 +15,7 @@ import sine_parameter_utils
 
 
 autocorrelation_dict_path = config.data_directory + 'autocorrelation_dict.pickle'
-
+taxonomy_dict = utils.build_taxonomy_dict()
 
 numpy.seterr(divide='ignore', invalid='ignore')
 min_n_obs = 10
@@ -46,7 +46,7 @@ def make_autocorrelation_dict():
     days_env = days_env[to_keep_idx]
 
     env_variable_array_rescaled = (env_variable_array - param_env_dict['param_mean_leastsq'][0])/param_env_dict['amp_leastsq'][0]
-    autocorr_obs_env, delta_t_env = utils.calculate_autocorrelation(env_variable_array_rescaled, days_env)
+    autocorr_obs_env, delta_t_env, n_env = utils.calculate_autocorrelation(env_variable_array_rescaled, days_env)
 
     
     autocorr_dict = {}
@@ -78,7 +78,7 @@ def make_autocorrelation_dict():
             
             afd_i_rescaled = (afd_i - param_mean_leastsq_i)/amp_leastsq_i
 
-            autocorr_obs_i, delta_t_i = utils.calculate_autocorrelation(afd_i_rescaled, days_i)
+            autocorr_obs_i, delta_t_i, n_i = utils.calculate_autocorrelation(afd_i_rescaled, days_i)
 
             delta_t_inter = numpy.intersect1d(delta_t_i, delta_t_env)
 
@@ -107,9 +107,6 @@ def plot_autocorrelation_otu(data_type):
     autocorr_dict = pickle.load(open(autocorrelation_dict_path, "rb"))
 
     otu_labels = list(autocorr_dict['otu'].keys())
-    otu_labels.sort()
-
-
     delta_t_env = autocorr_dict['env']['water_temp']['delta_t_env']
     autocorr_obs_env = autocorr_dict['env']['water_temp']['autocorr_obs_env']
 
@@ -119,6 +116,7 @@ def plot_autocorrelation_otu(data_type):
     idx_all = list(range(len(otu_labels)))
     chunk_all = [idx_all[x:x+5] for x in range(0, len(idx_all), 5)]
 
+    asv_count = 0
     for chunk_idx, chunk in enumerate(chunk_all):
 
         for c_idx, c in enumerate(chunk):
@@ -135,11 +133,17 @@ def plot_autocorrelation_otu(data_type):
 
             ax.set_xlabel("Time difference (days), " + r'$\Delta t$', fontsize = 10)
             ax.set_ylabel("Autocorrelation, " + utils.sample_label_dict[data_type], fontsize = 10)
-            ax.set_title(otu_labels[c], fontsize=11)
+            #ax.set_title(otu_labels[c], fontsize=11)
+            ax.set_title('ASV %d (%s)' % (asv_count + 1, taxonomy_dict[otu_labels[asv_count]]['family']), fontsize=12)
+
+
 
             if (chunk_idx==0) and (c_idx==0):
                 ax.legend(loc='upper right', fontsize=8)
     
+
+            asv_count += 1
+
 
     fig.subplots_adjust(hspace=0.35, wspace=0.40)
     fig_name = "%sautocorrelation_otu_%s.png" % (config.analysis_directory, data_type)
@@ -157,12 +161,12 @@ if __name__ == "__main__":
     #  ['DNA', 'RNA', 'ratio']
 
     parser = argparse.ArgumentParser(description='Variable to plot')
-    parser.add_argument('-d', '--data_type', type=str, required=True,
+    parser.add_argument('-d', '--data_type', type=str, required=False,
                         help='Data type to plot: RNA, DNA or ratio')
 
     args = parser.parse_args()    
 
-    #make_autocorrelation_dict()
+    make_autocorrelation_dict()
 
     plot_autocorrelation_otu(args.data_type)
 

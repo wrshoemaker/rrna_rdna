@@ -9,6 +9,8 @@ detach("package:gam", unload=TRUE)
 library(mgcv)
 library(data.table)
 library(performance)
+library(moments)
+
 
 set.seed(123456789)
 
@@ -30,7 +32,7 @@ df_nonans_t <- data.frame(apply(df_nonans_t, 2, function(x) as.numeric(as.charac
 
 colnames(df_nonans_t)
 
-otu_afd_all <- grep('Otu', colnames(df_nonans_t), value=TRUE)
+otu_afd_all <- grep('ASV', colnames(df_nonans_t), value=TRUE)
 
 env_variables <- c('otu_afd', 'p_value_or_coeff',  'water_temp', 'specific_conductivity', 'salinity',  'total_nitrogen', 'total_phosphorus', 'doc', 'secchi_depth', 'ph', 'dissolved_oxygen')
 #sd_env_var <- c('std_dev', sd(df_nonans_t$water_temp), sd(df_nonans_t$total_nitrogen), sd(df_nonans_t$total_phosphorus), sd(df_nonans_t$doc), sd(df_nonans_t$secchi_depth), sd(df_nonans_t$ph), sd(df_nonans_t$dissolved_oxygen))
@@ -46,16 +48,39 @@ for (i in 1:length(otu_afd_all)) {
   otu_afd_i <- otu_afd_all[i]
   #model_i <- as.formula(paste(otu_afd_i, " ~ water_temp + specific_conductivity + salinity + total_nitrogen + total_phosphorus + doc + secchi_depth + ph + dissolved_oxygen"))
   #model_i <- as.formula(paste(otu_afd_i, " ~ water_temp + specific_conductivity + salinity + total_nitrogen + total_phosphorus + doc + secchi_depth + ph + dissolved_oxygen + s(days)"))
-  model_i <- as.formula(paste(otu_afd_i, " ~ water_temp + specific_conductivity + salinity + total_nitrogen + total_phosphorus + doc + secchi_depth + ph + dissolved_oxygen + s(days,k=", 20, ")"))
+  #model_i <- as.formula(paste(otu_afd_i, " ~ water_temp + specific_conductivity + salinity + total_nitrogen + total_phosphorus + doc + secchi_depth + ph + dissolved_oxygen + s(day_of_year,k=", 12, ",  bs='cc') + s(days, k=10, bs='tp')") )
+
+  model_i <- as.formula(paste(otu_afd_i, " ~ s(water_temp,k=5) + s(specific_conductivity,k=5) + s(salinity,k=5) + s(total_nitrogen,k=5) + s(total_phosphorus,k=5) + s(doc,k=5) + s(secchi_depth,k=5) + s(ph,k=5) + s(dissolved_oxygen,k=5) + s(day_of_year,k=", 12, ",  bs='cc') + s(days, k=10, bs='tp')") )
+  #model_i <- as.formula(paste(otu_afd_i, " ~ s(water_temp,k=5) + s(specific_conductivity,k=5) + s(salinity,k=5) + s(total_nitrogen,k=5) + s(total_phosphorus,k=5) + s(doc,k=5) + s(secchi_depth,k=5) + s(ph,k=5) + s(dissolved_oxygen,k=5) + s(days, k=10, bs='tp')") )
   
   # represents degrees of freedom
   # 123 samples
   #model_i <- as.formula(paste(otu_afd_i, " ~ water_temp + specific_conductivity + salinity + total_nitrogen + total_phosphorus + doc + secchi_depth + ph + dissolved_oxygen + s(days,k=", 8, ") + s(day_of_year, bs = 'cc')"))
+    
+  #sk <- skewness(df[[otu_i]])
+  #family_i <- if (abs(sk) < 1) gaussian() else scat()
   
-  gam_env_i <- gam(formula=model_i, data=df_nonans_t)
+  
+  gam_env_i <- gam(formula=model_i, data=df_nonans_t, family=scat(),  method  = "REML",  select  = TRUE, knots= list(day_of_year = c(1, 365)))
    
-  coef_gam_i <- as.numeric(gam_env_i$coefficients[2:10])
-  p_value_i <- as.numeric(summary(gam_env_i)$p.pv)[2:10]
+  term_order <- c(
+    "s(water_temp)", "s(specific_conductivity)", "s(salinity)",
+    "s(total_nitrogen)", "s(total_phosphorus)", "s(doc)",
+    "s(secchi_depth)", "s(ph)", "s(dissolved_oxygen)")
+  
+  s_table <- summary(gam_env_i)$s.table
+  coef_gam_i  <- s_table[term_order, "edf"]
+  p_value_i   <- s_table[term_order, "p-value"]
+  
+  
+  #coef_gam_i <- as.numeric(gam_env_i$coefficients[2:10])
+  #p_value_i <- as.numeric(summary(gam_env_i)$p.pv)[2:10]
+  #p_value_i <- as.numeric(summary(gam_env_i)$p.pv)[2:10]
+  #p_value_i <- summary(gam_env_i)$s.table[, "p-value"]
+  
+  concurvity(gam_env_i, full = FALSE)$worst
+  
+  
   
   coef_gam_out_i <- c(otu_afd_i, 'coeff',  coef_gam_i)
   p_value_out_i <- c(otu_afd_i, 'p_value',  p_value_i)
@@ -71,7 +96,7 @@ for (i in 1:length(otu_afd_all)) {
 
 
 #save(copy_fourgram, file = "data.")
-write.table(x = matrix, file = "data/gam_env_analysis_only_time.csv", sep = ',', row.names = FALSE, col.names = FALSE, quote=FALSE)
+write.table(x = matrix, file = "data/gam_env_analysis.csv", sep = ',', row.names = FALSE, col.names = FALSE, quote=FALSE)
 
 
 

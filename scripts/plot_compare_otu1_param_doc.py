@@ -20,6 +20,8 @@ import sine_parameter_utils
 
 
 
+taxonomy_dict = utils.build_taxonomy_dict()
+
 
 
 
@@ -305,6 +307,9 @@ def plot_diff_timescale_vs_phase():
 
 def plot_diff_timescale_vs_amp():
 
+    param_dict = pickle.load(open(sine_parameter_utils.param_otu_mle_dict_path, "rb"))
+
+
     fig = plt.figure(figsize = (8.5, 4)) #
     fig.subplots_adjust(bottom= 0.15)
     gs = gridspec.GridSpec(nrows=1, ncols=2)
@@ -312,10 +317,7 @@ def plot_diff_timescale_vs_amp():
     #legend_elements = [Line2D([0], [0], marker='o',color='w', markeredgecolor='k', label='Heterotroph', markerfacecolor='w', markeredgewidth=1.4, markersize=8)]
     legend_elements = [Line2D([0], [0], marker='o',color='w', markeredgecolor=utils.dna_rna_color_dict['DNA'], label='Heterotroph', markerfacecolor=utils.dna_rna_color_dict['DNA'], markeredgewidth=1.4, markersize=8)]
 
-
-
     max_coeff = 0.95
-
     for env_variable_idx, env_variable in enumerate(['doc']):
 
         subplot_label_all = ['d', 'e']
@@ -324,7 +326,7 @@ def plot_diff_timescale_vs_amp():
 
             freq_all = []
             phase_all = []
-            coeff_all = []
+            #coeff_all = []
 
             otu_label_het_all = []
             for otu_label_idx, otu_label in enumerate(param_dict['otu_labels']):
@@ -332,17 +334,27 @@ def plot_diff_timescale_vs_amp():
                 if otu_label_idx == 0:
                     continue
 
-                param_otu = gam_coeff_dict[otu_label][data_type.lower()][env_variable]['coeff']
+                #param_otu = gam_coeff_dict[otu_label][data_type.lower()][env_variable]['coeff']
                 freq_all.append(param_dict['freq_mle'][data_type][otu_label_idx])
                 phase_all.append(param_dict['amp_mle'][data_type][otu_label_idx])
-                coeff_all.append(param_otu)
+                #coeff_all.append(param_otu)
+
+                #if param_dict['amp_mle'][data_type][otu_label_idx] > 1.3:        
+                #    #print(otu_label)            
+                #    #print(data_type, taxonomy_dict[otu_label]['family'])
+
+                #    print(taxonomy_dict[param_dict['amp_mle']['dna'][0]])
+
+                #if otu_label in utils.phototroph_asv_all:
+                #    print(param_dict['amp_mle'][data_type][otu_label_idx])
 
                 otu_label_het_all.append(otu_label)
 
 
             freq_all = numpy.asarray(freq_all)
             phase_all = numpy.asarray(phase_all)
-            coeff_all = numpy.asarray(coeff_all)
+            #coeff_all = numpy.asarray(coeff_all)
+
 
             timescale_all = 2*numpy.pi/freq_all
 
@@ -377,6 +389,7 @@ def plot_diff_timescale_vs_amp():
             #print(slope, p_value)
 
             rho_2, p_value = utils.corr_permute_test(diff_timescale_all, phase_all)
+            
 
 
 

@@ -8,13 +8,16 @@ import matplotlib.pyplot as plt
 from matplotlib import cm, colors
 from scipy import stats
 from scipy.optimize import leastsq, curve_fit, minimize
-from scipy.special import loggamma
+from scipy.special import loggamma, gammaln
 import lmfit
 from lmfit import Minimizer, create_params, fit_report, conf_interval
 # numdifftools also installed
 import simulation_utils
+from joblib import Parallel, delayed
 
 import pickle
+
+
 
 numpy.random.seed(123456789)
 random.seed(123456789)
@@ -41,6 +44,7 @@ env_variable_all_nested = [['water_temp', 'specific_conductivity', 'dissolved_ox
 
 
 metadata_dict = utils.build_metadata_dict()
+taxonomy_dict = utils.build_taxonomy_dict()
 
 minor_days, major_days, major_labels = utils.get_seasonal_tick_labels()
 s_by_s, otu_labels, samples = utils.load_count_data()
@@ -51,6 +55,8 @@ s_by_s_dna, s_by_s_rna, otu_labels_subset = utils.subset_s_by_s_occupancy(s_by_s
 sample_type = numpy.asarray([metadata_dict[s]['sample_type'] for s in samples])
 days = numpy.asarray([metadata_dict[s]['day'] for s in samples[(sample_type=='RNA')]])
 day_of_year = numpy.asarray([metadata_dict[s]['day_of_year'] for s in samples[(sample_type=='RNA')]])
+
+
 
 
 def calculate_sine_wave(t, amp, freq, phase, param_mean):
@@ -147,6 +153,8 @@ def grid_search_sine_wave(days_afd_, afd_, params_, upper_bound=False):
 
 
 
+
+
 def fit_sine_wave_leastsq(days_afd, afd):
 
     guess_mean = numpy.mean(afd)
@@ -202,6 +210,49 @@ def ll_gamma(afd, mean_, beta):
 
 
 
+def nll_constant_gamma(afd, beta):
+    # NLL constant-mean gamma model (MLE mean = sample mean)
+
+    M    = len(afd)
+    mean = numpy.mean(afd)
+    return -((beta - 1) * numpy.sum(numpy.log(afd)) - beta * numpy.sum(afd / mean) - beta * M * numpy.log(mean / beta) - M * gammaln(beta)), mean
+
+
+
+def _bootstrap_replicate(days, M, const_mean, beta_obs, params_template):
+    sim_afd = numpy.random.gamma(shape=beta_obs, scale=const_mean / beta_obs, size=M)
+    sim_beta, _  = simulation_utils.mle_sigma(sim_afd)
+    nll_const_sim, _ = nll_constant_gamma(sim_afd, sim_beta)
+
+    result_brute, fitter = grid_search_mle_sine_wave(days, sim_afd, params_template, sim_beta)
+    result_osc    = second_round_optimization_mle(result_brute, fitter, sim_beta, n_jobs=1) 
+    nll_osc_sim   = ll_sine_gamma(result_osc.params, days, sim_afd, sim_beta)
+
+    return 2.0 * (nll_const_sim - nll_osc_sim)
+
+
+
+def parametric_bootstrap_lrt(days, afd, best_params_mle, beta_estimate, params_template, n_bootstrap=199, n_jobs=-1):
+   
+   # Return:
+   # p_value, lambda_obs, lambda_boot
+
+    M = len(afd)
+    # observed test statistic 
+    nll_const_obs, const_mean = nll_constant_gamma(afd, beta_estimate)
+    nll_osc_obs               = ll_sine_gamma(best_params_mle, days, afd, beta_estimate)
+    lambda_obs                = 2.0 * (nll_const_obs - nll_osc_obs)
+
+    # bootstrap null distribution
+    lambda_boot = Parallel(n_jobs=n_jobs)(delayed(_bootstrap_replicate)(days, M, const_mean, beta_estimate, params_template) for _ in range(n_bootstrap))
+
+    p_value = float(numpy.mean(numpy.array(lambda_boot) >= lambda_obs))
+    
+    return p_value, lambda_obs, lambda_boot
+
+
+
+
 def ll_sine_gamma(params, days_afd, afd, beta):
 
     # minimize the negative log-likelihood 
@@ -211,14 +262,16 @@ def ll_sine_gamma(params, days_afd, afd, beta):
     param_mean = params['param_mean']
     #beta = params['beta']
 
-    x_bar_pred = numpy.exp(amp*(numpy.cos(phase)*numpy.sin(freq*days_afd) + numpy.sin(phase)*numpy.cos(freq*days_afd))) * param_mean
+    x_bar_pred = param_mean*numpy.exp(amp*(numpy.cos(phase)*numpy.sin(freq*days_afd) + numpy.sin(phase)*numpy.cos(freq*days_afd)))
     
-    ll = (beta-1)*sum(numpy.log(afd)) - beta*sum(afd/x_bar_pred) - beta*sum(numpy.log(x_bar_pred)) + len(afd)*beta*numpy.log(beta) - len(afd)*loggamma(beta)
+    ll = (beta-1)*numpy.sum(numpy.log(afd)) - beta*numpy.sum(afd/x_bar_pred) - beta*numpy.sum(numpy.log(x_bar_pred)) + len(afd)*beta*numpy.log(beta) - len(afd)*loggamma(beta)
 
     return -1*ll
 
 
-def second_round_optimization_mle(result_brute, fitter, beta):
+
+
+def second_round_optimization_mle_old(result_brute, fitter, beta):
 
     # second round of optimization using least-squares with brute force as a starting point
     best_result_leastsq = copy.deepcopy(result_brute)
@@ -230,7 +283,30 @@ def second_round_optimization_mle(result_brute, fitter, beta):
     return best_result_leastsq
 
 
-def grid_search_mle_sine_wave(days_afd_, afd_, params_, beta_estimate):
+
+def _try_candidate(candidate_params, fitter):
+    trial = fitter.minimize(method='lbfgsb', params=candidate_params)
+    return trial
+
+
+def second_round_optimization_mle(result_brute, fitter, beta, n_jobs=1):
+    best_result = copy.deepcopy(result_brute)
+
+    if n_jobs == 1:
+        # sequential, safe inside subprocesses
+        for candidate in result_brute.candidates:
+            trial = fitter.minimize(method='lbfgsb', params=candidate.params)
+            if trial.chisqr < best_result.chisqr:
+                best_result = trial
+    else:
+        results = Parallel(n_jobs=n_jobs)(delayed(_try_candidate)(candidate.params, fitter) for candidate in result_brute.candidates)
+        best_result = min(results, key=lambda r: r.chisqr)
+
+    return best_result
+
+
+
+def grid_search_mle_sine_wave_old(days_afd_, afd_, params_, beta_estimate):
 
     # minimize the negative log-likelihood 
     fitter = Minimizer(ll_sine_gamma, params_, fcn_args=(days_afd_, afd_, beta_estimate))
@@ -240,6 +316,22 @@ def grid_search_mle_sine_wave(days_afd_, afd_, params_, beta_estimate):
 
     return result_brute, fitter
 
+
+def grid_search_mle_sine_wave(days_afd_, afd_, params_, beta_estimate):
+    fitter = Minimizer(ll_sine_gamma, params_, fcn_args=(days_afd_, afd_, beta_estimate))
+    
+    # Coarse pass: 30^4 -> 12^4 = 20,736 evals
+    result_coarse = fitter.minimize(method='brute', Ns=12, keep=5)
+    
+    # Fine pass: narrow bounds around best coarse candidates
+    best_params = result_coarse.params
+    for name, param in best_params.items():
+        
+        step = (param.max - param.min) / 12
+        param.set(min=max(param.min, param.value - 2*step), max=min(param.max, param.value + 2*step))
+    
+    result_fine = fitter.minimize(method='brute', params=best_params, Ns=15, keep=25)
+    return result_fine, fitter
 
 
 
@@ -534,7 +626,7 @@ def make_param_otu_dict(log10_status=True, otu_to_remove=None, min_occupancy=1, 
 
 
 
-def make_param_mle_otu_dict(min_occupancy=1):
+def make_param_mle_otu_dict(min_occupancy=1, n_bootstrap=1000):
 
     s_by_s, otu_labels, samples = utils.load_count_data()
     rel_s_by_s_dna, rel_s_by_s_rna, otu_labels_subset = utils.clr_transform_subset(s_by_s, otu_labels, samples, min_occupancy=1)
@@ -545,6 +637,10 @@ def make_param_mle_otu_dict(min_occupancy=1):
     param_dict['data']['clr_afd'] = {}
     param_dict['beta'] = {}
     param_dict['sigma'] = {}
+    # LRT init
+    param_dict['lrt_pvalue'] = {}
+    param_dict['lrt_lambda']    = {}
+    param_dict['lrt_boot_dist'] = {}
     for p in param_no_method_all:
         
         # dictionary for OTUs because each OTU has multiple data types (RNA, DNA, ratio)
@@ -557,7 +653,7 @@ def make_param_mle_otu_dict(min_occupancy=1):
 
     param_dict['otu_labels'] = otu_labels_subset.tolist()
     sys.stderr.write("Fitting sine wave to OTU timeseries...\n")
-    sys.stderr.write(", ".join(["OTU", 'Sample type', "Amplititude", "Frequency", "Phase", "Mean"]) + "\n")
+    sys.stderr.write(", ".join(["ASV", 'Sample type', "Amplititude", "Frequency", "Phase", "Mean", "P-value"]) + "\n")
     for otu_idx in range(rel_s_by_s_dna.shape[0]):
 
         for data_type_idx, data_type in enumerate(['DNA', 'RNA']):
@@ -612,7 +708,6 @@ def make_param_mle_otu_dict(min_occupancy=1):
                 param_dict['sigma'][data_type] = []
 
 
-
             # get beta estimate
             beta_estimate, sigma_estimate = simulation_utils.mle_sigma(afd_clean)
             #print(beta_estimate)
@@ -626,7 +721,7 @@ def make_param_mle_otu_dict(min_occupancy=1):
                 param_dict['%s_brute' % p][data_type].append(best_params_brute[p].value)
 
             
-            best_result_mle = second_round_optimization_mle(result_brute, fitter, beta_estimate)
+            best_result_mle = second_round_optimization_mle(result_brute, fitter, beta_estimate, n_jobs=-1)
             best_params_mle = best_result_mle.params
             #ci = conf_interval(fitter, best_result_mle, sigmas=[0.95])
 
@@ -641,11 +736,34 @@ def make_param_mle_otu_dict(min_occupancy=1):
                 #if p == 'freq':
                 #    print(2*numpy.pi/best_params_mle[p].value)
 
-
             param_dict['data']['days'][data_type].append(days_afd.tolist())
             param_dict['data']['clr_afd'][data_type].append(clr_afd_clean.tolist())
 
-            sys.stderr.write("%s, %s, %.4f, %.4f, %.4f, %.4f\n" % (otu_labels_subset[otu_idx], data_type, param_dict['amp_mle'][data_type][otu_idx], param_dict['freq_mle'][data_type][otu_idx], param_dict['phase_mle'][data_type][otu_idx], param_dict['param_mean_mle'][data_type][otu_idx]))
+            # LRT
+            if data_type not in param_dict['lrt_pvalue']:
+                param_dict['lrt_pvalue'][data_type]     = []
+                param_dict['lrt_lambda'][data_type]     = []
+                param_dict['lrt_boot_dist'][data_type]  = []
+
+            
+            p_value, lambda_obs, lambda_boot = parametric_bootstrap_lrt(days = days_afd_clean, afd = afd_clean, best_params_mle = best_params_mle, beta_estimate = beta_estimate, params_template = params, n_bootstrap = n_bootstrap, n_jobs  = -1)
+            
+            param_dict['lrt_pvalue'][data_type].append(p_value)
+            param_dict['lrt_lambda'][data_type].append(lambda_obs)
+            param_dict['lrt_boot_dist'][data_type].append(lambda_boot)
+
+            sys.stderr.write(
+                "%s, %s, %.4f, %.4f, %.4f, %.4f, lrt_p=%.4f\n" % (
+                    otu_idx, data_type,
+                    param_dict['amp_mle'][data_type][otu_idx],
+                    param_dict['freq_mle'][data_type][otu_idx],
+                    param_dict['phase_mle'][data_type][otu_idx],
+                    param_dict['param_mean_mle'][data_type][otu_idx],
+                    p_value,
+                )
+            )        
+
+            #sys.stderr.write("%s, %s, %.4f, %.4f, %.4f, %.4f\n" % (otu_idx, data_type, param_dict['amp_mle'][data_type][otu_idx], param_dict['freq_mle'][data_type][otu_idx], param_dict['phase_mle'][data_type][otu_idx], param_dict['param_mean_mle'][data_type][otu_idx]))
 
 
 
@@ -885,8 +1003,6 @@ def plot_params(log10_status=False, clr_status=False, method='leastsq'):
 
 def plot_data_collapse_timeseris(log10_status=True, method='leastsq', env_variable='water_temp'):
 
-    metadata_dict = utils.build_metadata_dict()
-
     data_label = [r'$\tilde{x}_{i}^{(d)}(t)$', r'$\tilde{x}_{i}^{(r)}(t)$', r'$\phi_{i}(t)$']
     data_collapse_label = [r'$A^{-1}\left (  \tilde{x}_{i}^{(d)}(t) - \left< \tilde{x}_{i}^{(d)} \right> \right )$', r'$A^{-1}\left (  \tilde{x}_{i}^{(r)}(t) - \left<   \tilde{x}_{i}^{(d)} \right> \right )$', r'$A^{-1}\left (  \phi_{i}(t) - \left<   \tilde{x}_{i}^{(d)} \right> \right )$']
 
@@ -1030,8 +1146,6 @@ def plot_data_collapse_timeseris(log10_status=True, method='leastsq', env_variab
 
 def plot_rna_dna_residuals():
 
-    metadata_dict = utils.build_metadata_dict()
-
     s_by_s, otu_labels, samples = utils.load_count_data()
     s_by_s_dna, s_by_s_rna, otu_labels_subset = utils.subset_s_by_s_occupancy(s_by_s, otu_labels, samples, min_occupancy=1)
 
@@ -1041,7 +1155,6 @@ def plot_rna_dna_residuals():
     #s_by_s_rescaled_ratio = s_by_s_rescaled_rna/s_by_s_rescaled_dna
 
     # get days
-    metadata_dict = utils.build_metadata_dict()
     sample_type = numpy.asarray([metadata_dict[s]['sample_type'] for s in samples])
     days = numpy.asarray([metadata_dict[s]['day'] for s in samples[(sample_type=='RNA')]])
 
@@ -1092,7 +1205,6 @@ def plot_rna_dna_residuals():
 
 def plot_residuals(data_type='RNA', otu_to_remove=None, method='mle'):
 
-    metadata_dict = utils.build_metadata_dict()
     s_by_s, otu_labels, samples = utils.load_count_data()
     
     if otu_to_remove != None:
@@ -1102,7 +1214,6 @@ def plot_residuals(data_type='RNA', otu_to_remove=None, method='mle'):
 
     clr_s_by_s_dna, clr_s_by_s_rna, occupancy_idx, otu_labels_subset, n_reads_dna_occupancy, n_reads_rna_occupancy = utils.clr_transform(s_by_s, otu_labels, samples)
     # get days
-    metadata_dict = utils.build_metadata_dict()
     sample_type = numpy.asarray([metadata_dict[s]['sample_type'] for s in samples])
     days = numpy.asarray([metadata_dict[s]['day'] for s in samples[(sample_type==data_type)]])
 
@@ -1182,8 +1293,6 @@ def plot_residuals(data_type='RNA', otu_to_remove=None, method='mle'):
 
 def plot_compare_rna_dna_residuals():
 
-    metadata_dict = utils.build_metadata_dict()
-
     #minor_days, major_days, major_labels = utils.get_seasonal_tick_labels()
 
     s_by_s, otu_labels, samples = utils.load_count_data()
@@ -1195,7 +1304,6 @@ def plot_compare_rna_dna_residuals():
     s_by_s_rescaled_ratio = s_by_s_rescaled_rna/s_by_s_rescaled_dna
 
     # get days
-    metadata_dict = utils.build_metadata_dict()
     sample_type = numpy.asarray([metadata_dict[s]['sample_type'] for s in samples])
     days = numpy.asarray([metadata_dict[s]['day'] for s in samples[(sample_type=='RNA')]])
 
@@ -1273,7 +1381,6 @@ def plot_sine_residuals_all():
     fig = plt.figure(figsize = (12, 4))
     fig.subplots_adjust(bottom= 0.15)
 
-    metadata_dict = utils.build_metadata_dict()
     param_dict = load_param_otu_dict(log10_status=True)
 
     s_by_s, otu_labels, samples = utils.load_count_data()
@@ -1475,7 +1582,6 @@ def plot_rescaled_data_with_vs_without_otu1(data_type='RNA', log10_status=True):
 
 def plot_time_vs_abundance_clr(data_type='RNA', otu_to_remove=None, method='mle'):
 
-    metadata_dict = utils.build_metadata_dict()
     s_by_s, otu_labels, samples = utils.load_count_data()
     
     if otu_to_remove != None:
@@ -1483,19 +1589,17 @@ def plot_time_vs_abundance_clr(data_type='RNA', otu_to_remove=None, method='mle'
         s_by_s = s_by_s[otu_to_keep_idx,:]
         otu_labels = otu_labels[otu_to_keep_idx]
 
-    clr_s_by_s_dna, clr_s_by_s_rna, occupancy_idx, otu_labels_subset = utils.clr_transform(s_by_s, otu_labels, samples)
+    #clr_s_by_s_dna, clr_s_by_s_rna, occupancy_idx, otu_labels_subset, n_reads_dna_occupancy, n_reads_rna_occupancy = utils.clr_transform(s_by_s, otu_labels, samples)
 
     # get days
-    metadata_dict = utils.build_metadata_dict()
     sample_type = numpy.asarray([metadata_dict[s]['sample_type'] for s in samples])
     days = numpy.asarray([metadata_dict[s]['day'] for s in samples[(sample_type==data_type)]])
 
-
-    #param_dict =  load_param_otu_dict(log10_status=False, clr_status=True)
     param_dict =  pickle.load(open(param_otu_mle_dict_path, 'rb'))
 
     days = param_dict['data']['days'][data_type]
     afd = param_dict['data']['clr_afd'][data_type]
+    otu_labels = param_dict['otu_labels']
 
     fig = plt.figure(figsize = (20, 20))
     fig.subplots_adjust(bottom= 0.15)
@@ -1503,6 +1607,7 @@ def plot_time_vs_abundance_clr(data_type='RNA', otu_to_remove=None, method='mle'
     idx_all = list(range(len(afd)))
     chunk_all = [idx_all[x:x+5] for x in range(0, len(idx_all), 5)]
 
+    asv_count = 0
     for chunk_idx, chunk in enumerate(chunk_all):
 
         for c_idx, c in enumerate(chunk):
@@ -1534,8 +1639,8 @@ def plot_time_vs_abundance_clr(data_type='RNA', otu_to_remove=None, method='mle'
             #ax.axhline(y=0, ls=':', lw=2, zorder=0, c='k')#')
             ax.set_xlabel("Time (days)", fontsize=10)
             ax.set_ylabel("CLR-transformed abundance, " + utils.rescaled_label_clr_dict[data_type], fontsize=10)
-            ax.set_title(otu_labels_subset[c], fontsize=11)
-
+            ax.set_title('ASV %d (%s)' % (asv_count+1, taxonomy_dict[param_dict['otu_labels'][asv_count]]['family']), fontsize=11)
+            
             #minor_days, major_days, major_labels
             ax.set_xlim([0, max(days_c)])
             ax.set_xticks(minor_days, minor=True)
@@ -1546,6 +1651,8 @@ def plot_time_vs_abundance_clr(data_type='RNA', otu_to_remove=None, method='mle'
 
             #if (chunk_idx == 0) and (c_idx == 0):
             #    ax.legend(loc='upper right', fontsize=6)
+
+            asv_count += 1
 
 
     if otu_to_remove == None:
@@ -1564,8 +1671,6 @@ def plot_time_vs_abundance_clr(data_type='RNA', otu_to_remove=None, method='mle'
 
 def plot_clr_abundance_with_vs_without_otu1(data_type='RNA'):
     
-
-    metadata_dict = utils.build_metadata_dict()
     s_by_s, otu_labels, samples = utils.load_count_data()
     
     otu_to_keep_idx = (otu_labels != 'Otu000001')
@@ -1578,7 +1683,6 @@ def plot_clr_abundance_with_vs_without_otu1(data_type='RNA'):
     clr_s_by_s_no_otu1_dna, clr_s_by_s_no_otu1_rna, otu_labels_no_otu1_subset = utils.clr_transform(s_by_s_no_otu1, otu_labels_no_otu1, samples)
 
      # get days
-    metadata_dict = utils.build_metadata_dict()
     sample_type = numpy.asarray([metadata_dict[s]['sample_type'] for s in samples])
     days = numpy.asarray([metadata_dict[s]['day'] for s in samples[(sample_type==data_type)]])
 
@@ -1638,15 +1742,10 @@ def plot_clr_abundance_with_vs_without_otu1(data_type='RNA'):
 
 def plot_time_vs_clr_ratio(method='mle'):
 
-    metadata_dict = utils.build_metadata_dict()
     s_by_s, otu_labels, samples = utils.load_count_data()
     clr_s_by_s_dna, clr_s_by_s_rna, otu_labels_subset = utils.clr_transform_subset(s_by_s, otu_labels, samples)
 
     # get days
-    metadata_dict = utils.build_metadata_dict()
-    sample_type = numpy.asarray([metadata_dict[s]['sample_type'] for s in samples])
-    #days = numpy.asarray([metadata_dict[s]['day'] for s in samples[(sample_type=='DNA')]])
-
 
     #param_dict =  load_param_otu_dict(log10_status=False, clr_status=True)
     param_dict =  pickle.load(open(param_otu_mle_dict_path, 'rb'))
@@ -1657,23 +1756,26 @@ def plot_time_vs_clr_ratio(method='mle'):
     days_rna = param_dict['data']['days']['RNA']
     afd_rna = param_dict['data']['clr_afd']['RNA']
 
+    otu_labels = param_dict['otu_labels']
+
     fig = plt.figure(figsize = (20, 20))
     fig.subplots_adjust(bottom= 0.15)
 
     idx_all = list(range(len(afd_rna)))
     chunk_all = [idx_all[x:x+5] for x in range(0, len(idx_all), 5)]
 
+    asv_count = 0
     for chunk_idx, chunk in enumerate(chunk_all):
 
         for c_idx, c in enumerate(chunk):
 
             ax = plt.subplot2grid((len(chunk_all), len(chunk_all[0])), (chunk_idx, c_idx))
 
-            days_dna_c = numpy.asarray(days_dna[c])
-            days_rna_c = numpy.asarray(days_rna[c])
+            days_dna_c = numpy.asarray(days_dna[asv_count])
+            days_rna_c = numpy.asarray(days_rna[asv_count])
 
-            afd_dna_c = numpy.asarray(afd_dna[c])
-            afd_rna_c = numpy.asarray(afd_rna[c])
+            afd_dna_c = numpy.asarray(afd_dna[asv_count])
+            afd_rna_c = numpy.asarray(afd_rna[asv_count])
 
             days_intersect_c = numpy.intersect1d(days_dna_c, days_rna_c)
 
@@ -1713,8 +1815,10 @@ def plot_time_vs_clr_ratio(method='mle'):
 
             ax.scatter(days_rna_c, diff_rescaled_afd_c, s=8, alpha=1, c=utils.dna_rna_color_dict['ratio'], zorder=1)
             ax.set_xlabel("Time (days)", fontsize=10)
-            ax.set_ylabel("Rescaled CLR-transformed abund., " + utils.rescaled_label_clr_dict['ratio'], fontsize=10)
-            ax.set_title(otu_labels_subset[c], fontsize=11)
+            ax.set_ylabel("Rescaled CLR-transformed " + utils.rescaled_label_clr_dict['ratio'], fontsize=10)
+            #ax.set_title('ASV %d' % asv_count, fontsize=11)
+
+            ax.set_title('ASV %d (%s)' % (asv_count+1, taxonomy_dict[otu_labels[asv_count]]['family']), fontsize=11)
 
             #minor_days, major_days, major_labels
             ax.set_xlim([0, max(days_dna_c)])
@@ -1727,6 +1831,7 @@ def plot_time_vs_clr_ratio(method='mle'):
             if (chunk_idx == 0) and (c_idx == 0):
                 ax.legend(loc='upper right', fontsize=8)
 
+            asv_count += 1
 
  
     fig.subplots_adjust(hspace=0.35, wspace=0.40)
@@ -1797,8 +1902,9 @@ def make_flat_file_for_gam():
 
     param_otu_dict =  pickle.load(open(param_otu_mle_dict_path, 'rb'))
     #param_env_dict = load_param_env_dict()
-    #otu_idx = 0
-    #otu_idx = param_otu_dict['otu_labels'].index('Otu000046')
+
+    metadata_dict, sample_meta_format_to_srr = utils.build_metadata_dict(return_srr_dict=True)
+    srr_to_sample_meta_dict = dict(zip(sample_meta_format_to_srr.values(), sample_meta_format_to_srr.keys()))
 
     days_gam = [str(d) for d in param_otu_dict['data']['days']['DNA'][0]]
     #days = [str(d) for d in param_otu_dict['data']['days']['DNA'][0]]
@@ -1821,15 +1927,17 @@ def make_flat_file_for_gam():
 
         otu_label_i = param_otu_dict['otu_labels'][otu_i_idx]
 
-        file_.write(otu_label_i + '_dna,' + ",".join([str(d) for d in afd_dna]) + '\n')    
-        file_.write(otu_label_i + '_rna,' + ",".join([str(d) for d in afd_rna]) + '\n')    
-        file_.write(otu_label_i + '_rna_dna,' + ",".join([str(d) for d in (afd_rna - afd_dna)]) + '\n')    
+        file_.write('ASV_' + otu_label_i + '_dna,' + ",".join([str(d) for d in afd_dna]) + '\n')    
+        file_.write('ASV_' + otu_label_i + '_rna,' + ",".join([str(d) for d in afd_rna]) + '\n')    
+        file_.write('ASV_' + otu_label_i + '_rna_dna,' + ",".join([str(d) for d in (afd_rna - afd_dna)]) + '\n')    
             
     #file
     #file_.write('clr_afd_otu1_dna,' + ",".join([str(d) for d in afd_dna]) + '\n')    
     #file_.write('clr_afd_otu1_rna,' + ",".join([str(d) for d in afd_rna]) + '\n')    
-    #file_.write('clr_afd_otu1_rna_dna,' + ",".join([str(d) for d in (afd_rna - afd_dna)]) + '\n')    
-
+    #file_.write('clr_afd_otu1_rna_dna,' + ",".join([str(d) for d in (afd_rna - afd_dna)]) + '\n')   
+    # 
+    # p
+    # 
     for env_variable in utils.env_variable_all:
         env_variable_array = [str(metadata_dict[s][env_variable]) for s in samples[(sample_type=='RNA')]]
         file_.write(env_variable + ',' + ",".join(env_variable_array) + '\n')    
@@ -1899,16 +2007,26 @@ if __name__ == "__main__":
     print("Running...")
 
     # Infer parameters
-    #make_param_mle_otu_dict()
+    #make_param_mle_otu_dict(n_bootstrap=1000)
     #make_param_env_dict()
     
+    #
     #plot_time_vs_abundance_clr(data_type='RNA')
     #plot_time_vs_abundance_clr(data_type='DNA')
-
-    # plot includes sine difference
     #plot_time_vs_clr_ratio()
 
-    
+    #param_dict = pickle.load(open(param_otu_mle_dict_path, 'rb'))
+
+    #print(param_dict['data']['days']['DNA'])
+    ##days = numpy.asarray(param_dict['data']['days']['DNA'][0])
+    #delta_days = days[1:] - days[:-1]
+
+    #print(numpy.mean(delta_days), numpy.std(delta_days))
+
+
+    make_flat_file_for_gam()
+
+
 
     #plot_time_vs_env()
     #plot_summary_env_sine_params()
@@ -1925,26 +2043,4 @@ if __name__ == "__main__":
     #phase_doc = dict_['phase_leastsq'][doc_idx]
     #phase_temp = dict_['phase_leastsq'][temp_idx]
     #phase_nitrogen = dict_['phase_leastsq'][nitrogen_idx]
-
-
-    #make_flat_file_for_gam()
-    
-
-
-    #print(timescale_doc, timescale_temp, timescale_nitrogen)
-    #print(phase_doc, phase_temp, phase_nitrogen)
-
-
-
-    #freq_leastsq = numpy.asarray(dict_['freq_leastsq'])
-    #print(2*numpy.pi/freq_leastsq)
-
-
-    #make_flat_file_for_gam()
-
-    #plot_residuals(data_type='DNA')
-
-    #plot_rna_dna_resid_vs_delta_dna()
-    
-    plot_time_vs_clr_ratio()
 

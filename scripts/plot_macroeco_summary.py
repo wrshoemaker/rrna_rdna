@@ -78,7 +78,7 @@ for data_type_idx, data_type in enumerate(['DNA', 'RNA']):
     ax_afd.plot(x, pdf_loggamma_to_plot, 'k', ls='--', lw=3, label='Gamma fit')
 
     ax_afd.set_ylim([min(hist_to_plot_all), max(hist_to_plot_all)])
-    ax_afd.set_yscale('log', basey=10)
+    ax_afd.set_yscale('log', base=10)
     ax_afd.set_xlabel("Rescaled " + r'$\mathrm{log}_{10}$'  + " relative abundance", fontsize = 11)
     ax_afd.set_ylabel("Probability density", fontsize = 11)
 
@@ -122,8 +122,8 @@ for data_type_idx, data_type in enumerate(['DNA', 'RNA']):
 
     ax_mad.plot(10**bins_mean_all_to_keep_no_nan, 10**bins_occupancies_no_nan, lw=3, ls='--',c='k', zorder=2, label='Gamma prediction')
 
-    ax_mad.set_xscale('log', basex=10)
-    ax_mad.set_yscale('log', basey=10)
+    ax_mad.set_xscale('log', base=10)
+    ax_mad.set_yscale('log', base=10)
     #ax_mad.tick_params(axis='both', which='minor', labelsize=9)
     #ax_mad.tick_params(axis='both', which='major', labelsize=9)
 
@@ -152,8 +152,8 @@ for data_type_idx, data_type in enumerate(['DNA', 'RNA']):
     ax_taylors.set_xlim([min(mean_all), max(mean_all)])
     ax_taylors.set_ylim([min(var_all), max(var_all)])
 
-    ax_taylors.set_xscale('log', basex=10)
-    ax_taylors.set_yscale('log', basey=10)
+    ax_taylors.set_xscale('log', base=10)
+    ax_taylors.set_yscale('log', base=10)
 
     ax_taylors.set_xlabel("Mean relative abundance", fontsize = 11)
     ax_taylors.set_ylabel("Variance of relative abundance", fontsize = 11)

@@ -6,7 +6,7 @@ import numpy
 import utils
 import scipy.stats as stats
 from mpl_toolkits.axes_grid1.inset_locator import inset_axes
-
+import sine_parameter_utils
 
 import matplotlib.pyplot as plt
 from matplotlib import cm, colors
@@ -14,12 +14,14 @@ from matplotlib import cm, colors
 numpy.random.seed(123456789)
 
 
+taxonomy_dict = utils.build_taxonomy_dict()
+
 
 
 null_predict_change_dict_path = config.data_directory + 'null_predict_change_%sdict.pickle'
 
 metadata_dict = utils.build_metadata_dict()
-
+param_dict =  pickle.load(open(sine_parameter_utils.param_otu_mle_dict_path, 'rb'))
 
 
 
@@ -66,8 +68,6 @@ def make_null_predict_change_dict(n_perm = 10000, otu_to_remove=None):
     diff_clr_s_by_s_rescaled_dna = clr_s_by_s_rescaled_dna[:,1:] - clr_s_by_s_rescaled_dna[:,:-1]
     diff_clr_s_by_s_rescaled_rna = clr_s_by_s_rescaled_rna[:,1:] - clr_s_by_s_rescaled_rna[:,:-1]
     time_idx_range = numpy.arange(len(days))
-
-    #print(diff_clr_s_by_s_rescaled_dna)
 
     sample_type = numpy.asarray([metadata_dict[s]['sample_type'] for s in samples])
     samples_rna = samples[(sample_type=='RNA')]
@@ -165,16 +165,13 @@ def make_null_predict_change_dict(n_perm = 10000, otu_to_remove=None):
 
 
 
-def load_null_predict_change_dict_path():
-
+def load_null_predict_change_dict_path_():
     dict_ = pickle.load(open(null_predict_change_dict_path, "rb"))
     return dict_
 
 
 def load_null_predict_change_dict_path(otu_to_remove=None):
-
-    dict_path = get_null_predict_change_dict_path(otu_to_remove)
-
+    dict_path = load_null_predict_change_dict_path_(otu_to_remove)
     dict_ = pickle.load(open(dict_path, "rb"))
     return dict_
 
@@ -201,6 +198,7 @@ def plot_predict_change_scatter(otu_to_remove=None):
     fig.subplots_adjust(bottom= 0.15)
 
     #slope_null = calculate_max_t(null_predict_change_dict, 'rho')
+    asv_count = 0
 
     otus_all = numpy.asarray(list(null_predict_change_dict.keys()))
     chunk_all = [otus_all[x:x+5] for x in range(0, len(otus_all), 5)]
@@ -217,6 +215,8 @@ def plot_predict_change_scatter(otu_to_remove=None):
 
             ax.scatter(clr_s_by_s_rescaled_ratio_c, diff_clr_s_by_s_rescaled_dna_c, s=8, alpha=1, c='k', zorder=2)
             ax.set_title(c, fontsize=11)
+
+            ax.set_title('ASV %d (%s)' % (asv_count+1, taxonomy_dict[c]['family']), fontsize=11)
             ax.set_xlabel("RNA:DNA at time " + r'$t$' + ', ' + r'$\phi_{i}(t)$', fontsize=10)
             ax.set_ylabel("Per-day change in DNA, " + r'$\delta c_{i}^{\mathrm{DNA}} / \delta t $', fontsize=10)
 
@@ -229,7 +229,10 @@ def plot_predict_change_scatter(otu_to_remove=None):
             y_fit_range = slope*x_range_ + intercept
 
             null_slope_c = numpy.asarray(null_predict_change_dict[c]['slope_null_list'])
-            p_value_c = sum(null_slope_c > slope)/len(null_slope_c)
+            #p_value_c = sum(null_slope_c > slope)/len(null_slope_c)
+            print(numpy.mean(null_slope_c))
+
+            p_value_c = utils.compute_pvalue(slope, null_slope_c, side="two")
 
             #print(c, p_value_c)
 
@@ -241,7 +244,8 @@ def plot_predict_change_scatter(otu_to_remove=None):
             #ax.text(0.26, 0.78, utils.get_p_value_latex_label_dict(p_value_c), fontsize=12, ha='center', va='center', transform=ax.transAxes)
             ax.text(0.26, 0.78, r'$P = $' + str(round(p_value_c, 4)), fontsize=12, ha='center', va='center', transform=ax.transAxes)
 
-        
+            asv_count += 1
+
     if otu_to_remove == None:
         otu_to_remove_label = ''
     else:
@@ -261,6 +265,8 @@ def plot_predict_change_null_hist():
     fig = plt.figure(figsize = (20, 20))
     fig.subplots_adjust(bottom= 0.15)
 
+    asv_count = 0
+
     #idx_all = list(range(len(otu_labels_subset)))
     otus_all = numpy.asarray(list(null_predict_change_dict.keys()))
     chunk_all = [otus_all[x:x+5] for x in range(0, len(otus_all), 5)]
@@ -278,11 +284,11 @@ def plot_predict_change_null_hist():
             #ax.hist(rho_null_array, bins=70, edgecolor='black', color='lightgray', density=True, zorder=1)
             ax.hist(rho_null_array, bins=50, color=utils.dna_rna_color_dict['DNA'], density=True, alpha=0.8, zorder=1, label='Null')
             ax.axvline(x=rho_obs, lw=3, ls='--', c='k', zorder=2, label='Observed')
-            ax.set_xlim([-0.55,0.55])
+            ax.set_xlim([-1,1])
 
             ax.set_xlabel('Correlation coefficient', fontsize=10)
             ax.set_ylabel('Probability density', fontsize=10)
-            ax.set_title(c, fontsize=11)
+            ax.set_title('ASV %d (%s)' % (asv_count+1, taxonomy_dict[param_dict['otu_labels'][asv_count]]['family']), fontsize=11)
 
 
             if p_value <= 0.05:
@@ -295,6 +301,9 @@ def plot_predict_change_null_hist():
 
             if (c_idx==0) and (chunk_idx==0):
                 ax.legend(loc='upper left')
+
+            asv_count += 1
+
 
     fig.subplots_adjust(hspace=0.35, wspace=0.45)
     fig_name = "%spredict_change_null_hist.png" % config.analysis_directory
@@ -396,7 +405,7 @@ if __name__ == "__main__":
 
     #make_null_predict_change_dict()
 
-    #plot_predict_change_scatter()  
+    plot_predict_change_scatter()  
     plot_predict_change_null_hist()
 
 

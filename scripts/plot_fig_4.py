@@ -39,10 +39,12 @@ null_predict_change_dict = plot_predict_change_dna.load_null_predict_change_dict
 days = numpy.asarray(param_dict['data']['days']['RNA'][0])
 
 
+
 focal_otu = 'Otu000001'
+
 #focal_otu_formatted = 'OTU 1'
 focal_otu_formatted = 'OTU 1 ('+ r'$\mathit{Anabaena}$' + ' sp.)'
-focal_otu_idx = param_dict['otu_labels'].index(focal_otu)
+focal_otu_idx = 0 #param_dict['otu_labels'].index(focal_otu)
 
 clr_afd_dna = numpy.asarray(param_dict['data']['clr_afd']['DNA'][focal_otu_idx])
 clr_afd_rna = numpy.asarray(param_dict['data']['clr_afd']['RNA'][focal_otu_idx])
@@ -583,13 +585,12 @@ if __name__ == "__main__":
 
     print("Running...")
 
-
     #sine_slope_ratio_vs_dna_w_corr_null()
     #plot_ratio_vs_dna()
 
     #plot_slope_delta_null(make_dict=False)
 
-    #plot_slope_delta_null(make_dict=True)
-    plot_ratio_vs_delta_dna()
+    plot_slope_delta_null(make_dict=False)
+    #plot_ratio_vs_delta_dna()
 
     

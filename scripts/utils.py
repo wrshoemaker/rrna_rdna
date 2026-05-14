@@ -34,7 +34,7 @@ transformation_color_dict = {'rel': '#FFA500', 'clr': '#1f7e3b'}
 # 13d14c
 
 
-
+phototroph_asv_all = ['TACGGAGGATGCAAGCGTTATCCGGAATGATTGGGCGTAAAGGGTCCGCAGGTGGCATTGTAAGTCTGCTGTTAAAGAGTTTGGCTCAACCAAATAAGAGCAGTGGAAACTACAAAGCTAGAGTGTGGTCGGGGCAGAGGGAATTCCTGGTGTAGCGGTGAAATGCGTAGATATCAGGAAGAACACCAGTGGCGAAGGCGCTCTGCTAGGCCGAGACTGACACTGAGGGACGAAAGCTAGGGGAGCGAATGGG', 'TACGGGGGATGCAAGCGTTATCCGGAATGATTGGGCGTAAAGAGTCCGTAGGTAGTCATCCAAGTCTGCTGTTAAAGAGCGAGGCTTAACCTCGTAAAGGCAGTGGAAACTGGAAGACTAGAGTGTAGTAGGGGCAGAGGGAATTCCTGGTGTAGCGGTGAAATGCGTAGAGATCAGGAAGAACACCGGTGGCGAAGGCGCTCTGCTGGGCTATAACTGACACTGAGGGACGAAAGCTAGGGGAGCGAATGGG']
 
 rescaled_label_dict = {'RNA':'Rescaled RNA, ' + r'$r_{i}(t)$', 'DNA': 'Rescaled DNA, ' + r'$d_{i}(i)$', 'ratio': 'Rescaled RNA:DNA, ' + r'$\phi_{i}(t)$'}
 #rescaled_label_dict = {'RNA':'Rescaled RNA, ' + r'$r_{i}(t)$', 'DNA': 'Rescaled DNA, ' + r'$d_{i}(i)$', 'ratio': 'Rescaled RNA:DNA, ' + r'$\phi_{i}(t)$'}
@@ -133,13 +133,19 @@ def parse_time(line):
     if match:
         h, m = int(match.group(1)), int(match.group(2))
         hours = h + m / 60
+
+        if hours == 1.75:
+            hours = 11.75
+        
         return f"{match.group(0)}", hours
 
+
+    
     return None, None
 
 
 
-def build_metadata_dict():
+def build_metadata_dict(return_srr_dict=False):
 
     # change for ASVs
     #file_ = open('%sdesign.csv' % config.data_directory, 'r')
@@ -148,19 +154,23 @@ def build_metadata_dict():
     
     metadata_dict = {}
 
+    sample_meta_formate_to_srr = {}
     for line in file_:
 
         line = line.strip().split(',')
 
-        #sample = line[0].strip('"')
-        sample = line[11].strip('"')
+        sample_meta = line[11].strip('"')
+        sample = line[0].strip('"')
         #sample_type = line[1].strip('"')
         sample_type = line[-1].strip('"')
 
         metadata_dict[sample] = {}
         metadata_dict[sample]['sample_type'] = sample_type
+        metadata_dict[sample]['sample_meta'] = sample_meta
+        sample_meta_formate_to_srr[sample_meta] = sample
 
     file_.close()
+
 
     # environmental metadata
     file_environment = open('%sUnivLakeSurface.txt' % config.data_directory, 'r')
@@ -175,7 +185,7 @@ def build_metadata_dict():
         sample = line[0]
         if sample == '033':
             continue
-        
+                
         date, depth, water_temp, specific_conductivity, dissolved_oxygen, salinity, secchi_depth, ph, air_temperature  = line[1], line[2], line[3], line[4], line[5], line[6], line[7], line[8], line[10]
 
         if depth == 'NA':
@@ -234,7 +244,7 @@ def build_metadata_dict():
             days = 0
 
         else:
-            days = (datetime_object - metadata_dict['ULc001']['date']).days
+            days = (datetime_object - metadata_dict[sample_meta_formate_to_srr['ULc001']]['date']).days
 
         time_of_day_str = line[-1]
         # non-standardized format
@@ -248,18 +258,20 @@ def build_metadata_dict():
 
         for sample_i in [rna_sample, dna_sample]:
 
-            metadata_dict[sample_i]['date'] = datetime_object
-            metadata_dict[sample_i]['day_of_year'] = datetime_object.timetuple().tm_yday
-            metadata_dict[sample_i]['day'] = days
-            metadata_dict[sample_i]['depth'] = depth
-            metadata_dict[sample_i]['water_temp'] = water_temp
-            metadata_dict[sample_i]['specific_conductivity'] = specific_conductivity
-            metadata_dict[sample_i]['dissolved_oxygen'] = dissolved_oxygen
-            metadata_dict[sample_i]['salinity'] = salinity
-            metadata_dict[sample_i]['secchi_depth'] = secchi_depth
-            metadata_dict[sample_i]['ph'] = ph
-            metadata_dict[sample_i]['air_temperature'] = air_temperature
-            metadata_dict[sample_i]['hours_since_midnight'] = hours_since_midnight
+            sample_srr_i = sample_meta_formate_to_srr[sample_i]
+
+            metadata_dict[sample_srr_i]['date'] = datetime_object
+            metadata_dict[sample_srr_i]['day_of_year'] = datetime_object.timetuple().tm_yday
+            metadata_dict[sample_srr_i]['day'] = days
+            metadata_dict[sample_srr_i]['depth'] = depth
+            metadata_dict[sample_srr_i]['water_temp'] = water_temp
+            metadata_dict[sample_srr_i]['specific_conductivity'] = specific_conductivity
+            metadata_dict[sample_srr_i]['dissolved_oxygen'] = dissolved_oxygen
+            metadata_dict[sample_srr_i]['salinity'] = salinity
+            metadata_dict[sample_srr_i]['secchi_depth'] = secchi_depth
+            metadata_dict[sample_srr_i]['ph'] = ph
+            metadata_dict[sample_srr_i]['air_temperature'] = air_temperature
+            metadata_dict[sample_srr_i]['hours_since_midnight'] = hours_since_midnight
 
     
     file_environment.close()
@@ -319,18 +331,31 @@ def build_metadata_dict():
         rna_sample = 'ULc' + sample
         dna_sample = 'ULD' + sample
 
-        if dna_sample not in metadata_dict:
+        if dna_sample not in sample_meta_formate_to_srr:
             continue
 
+        sample_srr_rna_i = sample_meta_formate_to_srr[rna_sample]
+        sample_srr_dna_i = sample_meta_formate_to_srr[dna_sample]
+
+        #if sample_srr_dna_i not in metadata_dict:
+        #    continue
+        
         for sample_i in [rna_sample, dna_sample]:
-            metadata_dict[sample_i]['doc'] = doc
-            metadata_dict[sample_i]['total_nitrogen'] = total_nitrogen
-            metadata_dict[sample_i]['total_phosphorus'] = total_phosphorus
+            
+            sample_srr_i = sample_meta_formate_to_srr[sample_i]
+
+            metadata_dict[sample_srr_i]['doc'] = doc
+            metadata_dict[sample_srr_i]['total_nitrogen'] = total_nitrogen
+            metadata_dict[sample_srr_i]['total_phosphorus'] = total_phosphorus
 
 
     file_environment_2.close()
 
-    return metadata_dict
+    if return_srr_dict == True:
+        return metadata_dict, sample_meta_formate_to_srr
+    
+    else:
+        return metadata_dict
 
 
 def build_taxonomy_dict_otu():
@@ -461,6 +486,10 @@ def load_count_data():
 
     sample_names = samples1 + samples2
 
+    asv_names = numpy.array(asv_names)
+    sample_names = numpy.asarray(sample_names)
+
+
     return s_by_s, asv_names, sample_names
 
 
@@ -534,14 +563,10 @@ def coarse_grain_abundances_by_taxonomy_old(count_array, asvs, taxonomic_level='
     to_remove_idx = numpy.asarray(to_remove_idx)
     count_array_ = numpy.copy(count_array)
 
-    print(count_array_.shape)
 
     # delete NA
-    print(len(to_remove_idx))
     if len(to_remove_idx) > 0:
         count_array_ = numpy.delete(count_array_, to_remove_idx, axis=0)
-
-    print(count_array_.shape)
 
     for taxon_i in taxon_labels_all_clean_set:
 
@@ -1011,6 +1036,23 @@ def clr_transform_subset(s_by_s, otu_labels, samples, min_occupancy=1):
     s_by_s_rna_occupancy = s_by_s_rna[occupancy_idx,:]
     s_by_s_dna_occupancy = s_by_s_dna[occupancy_idx,:]
 
+    # relative abundance within each sample
+    rel_rna = s_by_s_rna_occupancy / numpy.sum(s_by_s_rna_occupancy, axis=0)
+    rel_dna = s_by_s_dna_occupancy / numpy.sum(s_by_s_dna_occupancy, axis=0)
+
+    # concatenate all samples
+    rel_all = numpy.concatenate([rel_rna, rel_dna], axis=1)
+
+    # mean relative abundance across time + RNA/DNA
+    mean_rel_abundance = numpy.mean(rel_all, axis=1)
+
+    # descending sort
+    sort_idx = numpy.argsort(mean_rel_abundance)[::-1]
+
+    s_by_s_rna_occupancy = s_by_s_rna_occupancy[sort_idx, :]
+    s_by_s_dna_occupancy = s_by_s_dna_occupancy[sort_idx, :]
+    otu_labels_occupancy = otu_labels_occupancy[sort_idx]
+
     #n_reads_rna = numpy.sum(s_by_s_rna, axis=0)
     #n_reads_dna = numpy.sum(s_by_s_dna, axis=0)
 
@@ -1086,8 +1128,6 @@ def clr_transform_sim_subset(s_by_s, min_occupancy=1):
 
     clr_s_by_s = numpy.log(s_by_s_occupancy/n_reads_gmean)
 
-    #print(s_by_s.shape, clr_s_by_s.shape, len(n_reads_gmean))
-
     return clr_s_by_s, occupancy_idx
 
 
@@ -1120,7 +1160,7 @@ def get_seasonal_tick_labels():
     # x axis in unit of days
     metadata_dict = build_metadata_dict()
 
-    dna_samples = [k for k in metadata_dict.keys() if 'ULD' in k]
+    dna_samples = [k for k in metadata_dict.keys() if 'DNA' in metadata_dict[k]['sample_type']]
     days = [metadata_dict[k]['day'] for k in dna_samples]
     dates = [metadata_dict[k]['date'] for k in dna_samples]
 
@@ -1386,7 +1426,7 @@ def corr_permute_test(x, y, n_iter=10000):
 
 
 
-def build_gam_coeff_dict():
+def build_gam_coeff_dict(floor_p_value=1e-8):
 
     gam_coeff_dict = {}
 
@@ -1399,9 +1439,21 @@ def build_gam_coeff_dict():
     for line in gam_env_analysis_file:
 
         line = line.strip().split(',')
-        otu = line[0].split('_', 1)[0]
-        data_type = line[0].split('_', 1)[1]
+
+        line_0_split = line[0].split('_')
+        #otu = line[0].split('_', 1)[1]
+        #otu = line_0_split[1]
+        #data_type = line[0].split('_', 1)[-1]
+        #print(len(line_0_split))
+        #data_type = line_0_split[-1]
         
+        otu = line_0_split[1]
+        for suffix in ['rna_dna', 'rna', 'dna']:
+            if line[0].endswith('_' + suffix):
+                data_type = suffix
+                break
+
+
         if otu not in gam_coeff_dict:
             gam_coeff_dict[otu] = {}
 
@@ -1412,13 +1464,15 @@ def build_gam_coeff_dict():
                     gam_coeff_dict[otu][d][e] = {}
 
         p_value_or_coeff = line[1]
-
         for e_idx, e in enumerate(env_variables):
+
+            
             gam_coeff_dict[otu][data_type][e][p_value_or_coeff] = float(line[e_idx+2])
 
     gam_env_analysis_file.close()
     
     otu_list = list(gam_coeff_dict.keys())
+
     for data_type in ['rna', 'dna', 'rna_dna']:
 
         for e_idx, e in enumerate(env_variables):
@@ -1495,7 +1549,6 @@ def load_gam():
         env_var_dict[env_variable] = numpy.std(env_variable_array_clean)
 
 
-    
     gam_dict = {}
     gam_file = open(gam_path, 'r')
     gam_header = gam_file.readline().strip().split(',')
@@ -1548,15 +1601,20 @@ def load_gam():
 
 
 
-def make_asv_fasta(n_fna_characters=config.n_fna_characters):
+def make_asv_fasta(n_fna_characters=config.n_fna_characters, min_occupancy=0.2):
 
     # creates fasta file from ASV names
-    asv_names = load_count_data()[1]
+    s_by_s, asv_names, sample_names = load_count_data()
+
+    occupancy = (s_by_s>0).sum(axis=1) / s_by_s.shape[1]
+
+    asv_names = numpy.asarray(asv_names)
+    asv_names_final = asv_names[occupancy >= min_occupancy]
 
     out_path = '%sasv.fna' % config.data_directory
     out_file = open(out_path, 'w')
 
-    for asv_sequence in asv_names:
+    for asv_sequence in asv_names_final:
 
         out_file.write('>%s\n' % asv_sequence)
 
@@ -1665,27 +1723,50 @@ def clean_alignment(muscle_path, muscle_clean_path, min_n_sites=100, max_fractio
 
 
 
+
+def compute_pvalue(observed, null_distribution, side="two"):
+
+    null = numpy.asarray(null_distribution)
+
+    p_right = numpy.mean(null >= observed)
+    p_left  = numpy.mean(null <= observed)
+
+    if side == "right":
+        return p_right
+    elif side == "left":
+        return p_left
+    elif side == "two":
+        return 2 * min(p_left, p_right)
+    else:
+        raise ValueError("side must be 'right', 'left', or 'two'")
+
+
+
+
+
 if __name__ == "__main__":
 
-    #make_rrna_copy_dict()
-    #d = build_taxonomy_dict()
-    #metadata_dict = build_metadata_dict()
-    #s_by_s = load_count_data()[0]
+    print('Utility file')
 
-    #n_sampled = sum((numpy.sum(s_by_s>0, axis=1) / s_by_s.shape[1] ) ==1 )
+    #make_asv_fasta(min_occupancy=1)
+    #muscle_path = '%sasv_w_outgroup_aligned.fna' % config.data_directory
+    #muscle_clean_path = '%sasv_w_outgroup_aligned_clean.fna' % config.data_directory
+    #clean_alignment(muscle_path, muscle_clean_path)
+
+    #m_dict = build_metadata_dict()
+    #samples = list(m_dict.keys())
+
+    #time = numpy.array([m_dict[s]['hours_since_midnight'] for s in samples], dtype=float) 
+    #day_of_year = numpy.array([m_dict[s]['day_of_year'] for s in samples], dtype=float) 
+    #to_keep_idx = ~numpy.isnan(time)
+    #time_no_nan = time[to_keep_idx]
+    #day_of_year_no_nan = day_of_year[to_keep_idx]
+
+    #print(numpy.corrcoef(day_of_year_no_nan, time_no_nan))
+
+    #print(len(time_no_nan)/len(time))
+
+    #print(numpy.mean(time_no_nan), numpy.std(time_no_nan))
 
 
-    m_dict = build_metadata_dict()
-    samples = list(m_dict.keys())
-
-    time = numpy.array([m_dict[s]['hours_since_midnight'] for s in samples], dtype=float) 
-    day_of_year = numpy.array([m_dict[s]['day_of_year'] for s in samples], dtype=float) 
-    to_keep_idx = ~numpy.isnan(time)
-    time_no_nan = time[to_keep_idx]
-    day_of_year_no_nan = day_of_year[to_keep_idx]
-
-    print(numpy.corrcoef(day_of_year_no_nan, time_no_nan))
-
-    print(len(time_no_nan)/len(time))
-
-    print(numpy.mean(time_no_nan), numpy.std(time_no_nan))
+    build_metadata_dict()

@@ -16,6 +16,7 @@ import sine_parameter_utils
 
 param_dict = pickle.load(open(sine_parameter_utils.param_otu_mle_dict_path, "rb"))
 #autocorr_dict = pickle.load(open(autocorrelation_dict_path, "rb"))
+taxonomy_dict = utils.build_taxonomy_dict()
 
 #otu_labels = list(autocorr_dict['otu'].keys())
 #otu_labels.sort()
@@ -32,6 +33,8 @@ s_by_s, otu_labels, samples = utils.load_count_data()
 idx_all = list(range(len(param_dict['data']['clr_afd']['RNA'])))
 chunk_all = [idx_all[x:x+5] for x in range(0, len(idx_all), 5)]
 
+
+asv_count = 0
 for chunk_idx, chunk in enumerate(chunk_all):
 
     for c_idx, c in enumerate(chunk):
@@ -46,7 +49,7 @@ for chunk_idx, chunk in enumerate(chunk_all):
             logfold_i = (afd_i[1:] - afd_i[:-1]) / (days_i[1:] - days_i[:-1])
             days_logfold_i = days_i[:-1]
 
-            otu_label_i = otu_labels[c]
+            otu_label_i = otu_labels[asv_count]
 
             rho_all, delta_t_all, n_all = utils.calculate_autocorrelation(logfold_i, days_logfold_i, min_n_obs=10)
 
@@ -62,14 +65,15 @@ for chunk_idx, chunk in enumerate(chunk_all):
 
             ax.set_xlabel("Time difference (days), " + r'$\Delta t$', fontsize = 10)
             ax.set_ylabel("Autocorr. of log-fold growth", fontsize = 10)
-            ax.set_title(otu_labels[c], fontsize=11)
+            #ax.set_title(otu_labels[c], fontsize=11)
+            ax.set_title('ASV %d (%s)' % (asv_count+1, taxonomy_dict[otu_label_i]['family']), fontsize=11)
 
             #if (chunk_idx==0) and (c_idx==0):
             #    ax.legend(loc='upper right', fontsize=8)
 
-
-
         ax.axhline(y=0, ls=':', lw=2, c='k', zorder=3, label='Data')
+
+        asv_count += 1
 
 
 

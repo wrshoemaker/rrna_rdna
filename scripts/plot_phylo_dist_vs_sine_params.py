@@ -3,7 +3,6 @@ import sys
 import argparse
 import copy
 import numpy
-import utils
 from operator import itemgetter
 import matplotlib.pyplot as plt
 from matplotlib import cm, colors, ticker
@@ -15,40 +14,34 @@ from itertools import combinations
 
 # numdifftools also installed
 import pickle
+#import ete4
 
-#import simulation_utils
-
+import utils
 import sine_parameter_utils
 
 
 dist_dict_path = config.data_directory + 'otu_dist_dict.pickle'
-otu_list = ['Otu000001', 'Otu000002', 'Otu000003', 'Otu000004', 'Otu000008', 'Otu000009', 'Otu000014', 'Otu000016', 'Otu000019', 'Otu000021', 'Otu000023', 'Otu000024', 'Otu000028', 'Otu000030', 'Otu000032', 'Otu000034', 'Otu000037', 'Otu000041', 'Otu000046', 'Otu000050', 'Otu000051', 'Otu000058', 'Otu000075', 'Otu000093', 'Otu000131']
-otu_pair_all = list(combinations(otu_list, 2))
+#otu_list = ['Otu000001', 'Otu000002', 'Otu000003', 'Otu000004', 'Otu000008', 'Otu000009', 'Otu000014', 'Otu000016', 'Otu000019', 'Otu000021', 'Otu000023', 'Otu000024', 'Otu000028', 'Otu000030', 'Otu000032', 'Otu000034', 'Otu000037', 'Otu000041', 'Otu000046', 'Otu000050', 'Otu000051', 'Otu000058', 'Otu000075', 'Otu000093', 'Otu000131']
+
+
 
 def build_phylo_dist_dict():
 
-    #import ete3
-
     dist_dict = {}
-
-    tree_path = "%sul_resgrad.tree.txt" % config.data_directory
-    tree = ete3.Tree(tree_path, quoted_node_names=False, format=1)
+    tree_path = "%sasv_w_outgroup_aligned_clean.fna.raxml.bestTree" % config.data_directory
+    tree = ete4.Tree(tree_path)
     # OTUs on tree label have five digits, e.g., Otu54350
+    otu_all = [str(s) for s in tree.leaf_names() if str(s) != 'NC_005042_1_353331_354795_Prochlorococcus_marinus_subsp_marinus_str_CCMP1375_complete_genome']
+    otu_pair_all = list(combinations(otu_all, 2))
 
     for otu_pair in otu_pair_all:
 
         otu_1 = str(otu_pair[0])
         otu_2 = str(otu_pair[1])
-
-        otu_1_formatted = 'Otu' + otu_1[4:]
-        otu_2_formatted = 'Otu' + otu_2[4:]
-
-        otu_pair_dist = tree.get_distance(otu_1_formatted, otu_2_formatted)
-
+        otu_pair_dist = tree.get_distance(otu_1, otu_2)
         dist_dict[otu_pair] = otu_pair_dist
 
     sys.stderr.write("Saving distance dictionary...\n")
-
     with open(dist_dict_path, 'wb') as outfile:
         pickle.dump(dist_dict, outfile, protocol=pickle.HIGHEST_PROTOCOL)
 
@@ -59,11 +52,11 @@ def plot_dist_vs_sine_parameters():
 
     param_dict = pickle.load(open(sine_parameter_utils.param_otu_mle_dict_path, "rb"))
     dist_dict = pickle.load(open(dist_dict_path, "rb"))
-
+    otu_pair_all = list(dist_dict.keys())
+    
     fig = plt.figure(figsize = (8.5, 12)) #
     fig.subplots_adjust(bottom= 0.15)
     gs = gridspec.GridSpec(nrows=3, ncols=2)
-
     for data_type_idx, data_type in enumerate(['DNA', 'RNA']):
 
         for param_idx, param in enumerate(['amp', 'freq', 'phase']):
@@ -76,7 +69,6 @@ def plot_dist_vs_sine_parameters():
                
             dist_all = []
             param_delta_all = []
-
             for otu_pair in otu_pair_all:
 
                 dist_all.append(dist_dict[otu_pair])

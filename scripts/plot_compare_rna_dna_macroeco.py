@@ -75,7 +75,7 @@ hist_mad_rna, bins_mean_mad_rna = utils.get_hist_and_bins(rescaled_log_mad_rna, 
 
 ax_mad_dist.scatter(bins_mean_mad_dna, hist_mad_dna, s=7, color='dodgerblue', alpha=0.5, lw=1, label='DNA')
 ax_mad_dist.scatter(bins_mean_mad_rna, hist_mad_rna, s=7, color='#FF6347', alpha=0.5, lw=1, label='RNA')
-ax_mad_dist.set_yscale('log', basey=10)
+ax_mad_dist.set_yscale('log', base=10)
 ax_mad_dist.xaxis.set_tick_params(labelsize=7)
 ax_mad_dist.yaxis.set_tick_params(labelsize=7)
 ax_mad_dist.set_xlabel("Rescaled " + r'$\mathrm{log}_{10}$' + " mean relative abundance", fontsize = 10)
@@ -89,8 +89,8 @@ ax_mad_scatter.plot([min_mad,1],[min_mad,1], lw=2, ls=':',c='k', zorder=2, label
 
 ax_mad_scatter.set_xlabel("Mean relative abundance, DNA", fontsize = 10)
 ax_mad_scatter.set_ylabel("Mean relative abundance, RNA", fontsize = 10)
-ax_mad_scatter.set_xscale('log', basex=10)
-ax_mad_scatter.set_yscale('log', basey=10)
+ax_mad_scatter.set_xscale('log', base=10)
+ax_mad_scatter.set_yscale('log', base=10)
 ax_mad_scatter.xaxis.set_tick_params(labelsize=7)
 ax_mad_scatter.yaxis.set_tick_params(labelsize=7)
 ax_mad_scatter.set_xlim([min_mad,1])
@@ -106,7 +106,7 @@ hist_occupancy_dna, bins_mean_occupancy_dna = utils.get_hist_and_bins(occupancy_
 hist_occupancy_rna, bins_mean_occupancy_rna = utils.get_hist_and_bins(occupancy_rna, bins=100)
 ax_occupancy_dist.scatter(bins_mean_occupancy_dna, hist_occupancy_dna, s=7, color='dodgerblue', alpha=0.5, lw=1, label='DNA')
 ax_occupancy_dist.scatter(bins_mean_occupancy_rna, hist_occupancy_rna, s=7, color='#FF6347', alpha=0.5, lw=1, label='RNA')
-ax_occupancy_dist.set_yscale('log', basey=10)
+ax_occupancy_dist.set_yscale('log', base=10)
 ax_occupancy_dist.xaxis.set_tick_params(labelsize=7)
 ax_occupancy_dist.yaxis.set_tick_params(labelsize=7)
 ax_occupancy_dist.set_xlabel('Occupancy', fontsize = 10)
@@ -120,8 +120,8 @@ ax_occupancy_scatter.plot([min_occupancy,1],[min_occupancy,1], lw=2, ls=':',c='k
 ax_occupancy_scatter.set_xlabel("Occupancy, DNA", fontsize = 10)
 ax_occupancy_scatter.set_ylabel("Occupancy, RNA", fontsize = 10)
 
-ax_occupancy_scatter.set_xscale('log', basex=10)
-ax_occupancy_scatter.set_yscale('log', basey=10)
+ax_occupancy_scatter.set_xscale('log', base=10)
+ax_occupancy_scatter.set_yscale('log', base=10)
 ax_occupancy_scatter.xaxis.set_tick_params(labelsize=7)
 ax_occupancy_scatter.yaxis.set_tick_params(labelsize=7)
 ax_occupancy_scatter.set_xlim([min_occupancy,1])
@@ -156,11 +156,11 @@ ax_corr_dist.scatter(bins_mean_corr_dna, hist_corr_dna, s=18, color='dodgerblue'
 ax_corr_dist.scatter(bins_mean_corr_rna, hist_corr_rna, s=18, color='#FF6347', alpha=0.8, lw=1, label='RNA', zorder=2)
 ax_corr_dist.plot(bins_mean_corr_dna, hist_corr_dna, lw=1, color='dodgerblue', alpha=0.8, zorder=1)
 ax_corr_dist.plot(bins_mean_corr_rna, hist_corr_rna, lw=1, color='#FF6347', alpha=0.8, zorder=1)
-ax_corr_dist.set_yscale('log', basey=10)
+ax_corr_dist.set_yscale('log', base=10)
 
 ax_corr_dist.xaxis.set_tick_params(labelsize=7)
 ax_corr_dist.yaxis.set_tick_params(labelsize=7)
-ax_corr_dist.set_xlabel("Correlation between OTUs", fontsize = 10)
+ax_corr_dist.set_xlabel("Correlation between ASVs", fontsize = 10)
 ax_corr_dist.set_ylabel("Probability density", fontsize = 10)
 
 
@@ -170,8 +170,8 @@ ax_corr_dist.set_ylabel("Probability density", fontsize = 10)
 
 ax_corr_scatter.scatter(rho_dna_flat, rho_rna_flat, alpha=0.4, s=3, c='k', zorder=2)
 ax_corr_scatter.plot([-1,1], [-1,1], lw=2, ls=':', c='k', zorder=2)
-ax_corr_scatter.set_xlabel("Correlation between OTUs, DNA", fontsize = 10)
-ax_corr_scatter.set_ylabel("Correlation between OTUs, RNA", fontsize = 10)
+ax_corr_scatter.set_xlabel("Correlation between ASVs, DNA", fontsize = 10)
+ax_corr_scatter.set_ylabel("Correlation between ASVs, RNA", fontsize = 10)
 
 ax_corr_scatter.xaxis.set_tick_params(labelsize=7)
 ax_corr_scatter.yaxis.set_tick_params(labelsize=7)
@@ -195,9 +195,10 @@ p_value = stats.t.sf(numpy.abs(t_value), len(rho_dna_flat)-2)
 
 
 
-ax_corr_scatter.text(0.2, 0.62, r'$\rho^{2}=$' + str(round(r_value**2, 3)), fontsize=10, ha='center', va='center', transform=ax_corr_scatter.transAxes)
+#ax_corr_scatter.text(0.2, 0.62, r'$\rho^{2}=$' + str(round(r_value**2, 3)), fontsize=10, ha='center', va='center', transform=ax_corr_scatter.transAxes)
 ax_corr_scatter.text(0.2, 0.82, 'Slope = ' + str(round(slope, 3)), fontsize=10, ha='center', va='center', transform=ax_corr_scatter.transAxes)
-ax_corr_scatter.text(0.2, 0.72, r'$ P \, \nleq \, 0.05$', fontsize=10, ha='center', va='center', transform=ax_corr_scatter.transAxes)
+#ax_corr_scatter.text(0.2, 0.72, r'$ P \, \nleq \, 0.05$', fontsize=10, ha='center', va='center', transform=ax_corr_scatter.transAxes)
+ax_corr_scatter.text(0.2, 0.72, r'$ P = $' + str(round(p_value, 3)), fontsize=10, ha='center', va='center', transform=ax_corr_scatter.transAxes)
 
 
 

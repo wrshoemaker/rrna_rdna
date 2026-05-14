@@ -32,8 +32,8 @@ ax.scatter(time_no_nan, day_of_year_no_nan, c='k')
 slope, intercept, r_value, p_value, std_err = stats.linregress(time_no_nan, day_of_year_no_nan)
 
 
-ax.text(0.26, 0.87, r'$\rho^{2} = $' + str(round(r_value**2, 3)), fontsize=12, ha='center', va='center', transform=ax.transAxes)
-ax.text(0.26, 0.78, r'$P = $' + str(round(p_value, 4)), fontsize=12, ha='center', va='center', transform=ax.transAxes)
+ax.text(0.2, 0.82, r'$\rho^{2} = $' + str(round(r_value**2, 3)), fontsize=12, ha='center', va='center', transform=ax.transAxes)
+ax.text(0.2, 0.73, r'$P = $' + str(round(p_value, 4)), fontsize=12, ha='center', va='center', transform=ax.transAxes)
 
 ax.set_xlabel("Time of sampling in a day (h)", fontsize=12)
 ax.set_ylabel("Day of calendar year", fontsize=12)

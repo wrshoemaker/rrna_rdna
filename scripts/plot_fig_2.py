@@ -18,7 +18,6 @@ import pickle
 
 import simulation_utils
 
-legend_elements = [Line2D([0], [0], marker='o', color=utils.dna_rna_color_dict['RNA'], label='One species', markersize=5)]
 
 
 method = 'mle'
@@ -27,24 +26,23 @@ s_by_s, otu_labels, samples = utils.load_count_data()
 metadata_dict = utils.build_metadata_dict()
 sample_type = numpy.asarray([metadata_dict[s]['sample_type'] for s in samples])
 days = numpy.asarray([metadata_dict[s]['day'] for s in samples[(sample_type=='RNA')]])
-
-metadata_dict = utils.build_metadata_dict()
 minor_days, major_days, major_labels = utils.get_seasonal_tick_labels()
-
 param_dict = pickle.load(open(sine_parameter_utils.param_otu_mle_dict_path, "rb"))
+taxonomy_dict = utils.build_taxonomy_dict()
 
+#print(param_dict['otu_labels'])
 
 # first, large plot of the oscillations
-focal_otu = 'Otu000001'
-focal_otu_idx = param_dict['otu_labels'].index('Otu000001')
+focal_otu = param_dict['otu_labels'][0]
+focal_otu_idx = param_dict['otu_labels'].index(focal_otu)
 
-days_focal = param_dict['data']['days']['DNA'][focal_otu_idx]
-afd_focal = param_dict['data']['clr_afd']['DNA'][focal_otu_idx]
-amp_focal = param_dict['amp_%s' % method]['DNA'][focal_otu_idx]
-freq_focal = param_dict['freq_%s' % method]['DNA'][focal_otu_idx]
-phase_focal = param_dict['phase_%s' % method]['DNA'][focal_otu_idx]
-param_mean_focal = param_dict['param_mean_%s' % method]['DNA'][focal_otu_idx]
-beta_focal = param_dict['beta']['DNA'][focal_otu_idx]
+days_focal = param_dict['data']['days']['RNA'][focal_otu_idx]
+afd_focal = param_dict['data']['clr_afd']['RNA'][focal_otu_idx]
+amp_focal = param_dict['amp_%s' % method]['RNA'][focal_otu_idx]
+freq_focal = param_dict['freq_%s' % method]['RNA'][focal_otu_idx]
+phase_focal = param_dict['phase_%s' % method]['RNA'][focal_otu_idx]
+param_mean_focal = param_dict['param_mean_%s' % method]['RNA'][focal_otu_idx]
+beta_focal = param_dict['beta']['RNA'][focal_otu_idx]
 
 sigma_focal = 2/(beta_focal+1)
 
@@ -55,11 +53,11 @@ model_prediction = amp_focal*numpy.sin(freq_focal*days_range+phase_focal) + nump
 print( numpy.log(param_mean_focal) + numpy.log(1 - sigma_focal/2))
 
 fig, ax = plt.subplots(figsize=(6,4))
-ax.plot(days_range, model_prediction, ls='-', lw=3, c=utils.dna_rna_color_dict['DNA'], zorder=1, label='Sine fit')
-ax.scatter(days_focal, afd_focal, s=8, alpha=1, c=utils.dna_rna_color_dict['DNA'], zorder=2)
+ax.plot(days_range, model_prediction, ls='-', lw=3, c=utils.dna_rna_color_dict['RNA'], zorder=1, label='Oscillating mean + gamma AFD')
+ax.scatter(days_focal, afd_focal, s=8, alpha=1, c=utils.dna_rna_color_dict['RNA'], zorder=2)
 ax.axhline(y= numpy.log(param_mean_focal) + numpy.log(1 - sigma_focal/2), ls=':', lw=3, zorder=3, c='k')#')
 ax.set_xlabel("Time (days)", fontsize=14)
-ax.set_ylabel("CLR-transformed abundance, " + utils.rescaled_label_clr_dict['DNA'], fontsize=14)
+ax.set_ylabel("CLR-transformed abundance, " + utils.rescaled_label_clr_dict['RNA'], fontsize=14)
 
 ax.set_xlim([0, max(days_focal)])
 ax.set_xticks(minor_days, minor=True)
@@ -67,9 +65,9 @@ ax.set_xticks(major_days, minor=False)
 ax.set_xticklabels(major_labels, minor=False, fontsize=7)
 ax.yaxis.set_tick_params(labelsize=7)
 
-ax.legend(loc='upper left', fontsize=10)
+ax.legend(loc='lower right', fontsize=10)
 #ax.set_title('OTU 1', color='k', fontsize=14)
-ax.set_title('OTU 1 ('+ r'$\mathit{Anabaena}$' + ' sp.)', color='k', fontsize=14)
+ax.set_title('ASV 1 (%s)' % taxonomy_dict[focal_otu]['family'], color='k', fontsize=14)
 
 fig.subplots_adjust(hspace=0.35, wspace=0.25)
 fig_name = "%sfig2_1.png" % config.analysis_directory
@@ -168,6 +166,7 @@ for data_type_idx, data_type in enumerate(['DNA', 'RNA']):
 
     #if data_type_idx == 0:
     ax_data_rescaled.legend(loc='lower center', fontsize=6)
+    legend_elements = [Line2D([0], [0], marker='o', color=utils.dna_rna_color_dict[data_type], label='One ASV', markersize=5)]
     ax_data.legend(handles=legend_elements, loc='upper left', fontsize=6)
 
 
