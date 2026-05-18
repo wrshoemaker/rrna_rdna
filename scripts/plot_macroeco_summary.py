@@ -47,7 +47,7 @@ for data_type_idx, data_type in enumerate(['DNA', 'RNA']):
     ax_taylors.text(-0.1, 1.07, utils.sub_plot_labels[4+data_type_idx], fontsize=10, fontweight='bold', ha='center', va='center', transform=ax_taylors.transAxes)
 
 
-    ax_afd.set_title(data_type, fontsize=12, color=utils.dna_rna_color_dict[data_type], fontweight='bold')
+    ax_afd.set_title(utils.rescaled_label_clr_dict[data_type], fontsize=12, color=utils.dna_rna_color_dict[data_type], fontweight='bold')
 
 
 

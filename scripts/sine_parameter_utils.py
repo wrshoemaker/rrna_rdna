@@ -7,8 +7,11 @@ import random
 import matplotlib.pyplot as plt
 from matplotlib import cm, colors
 from scipy import stats
-from scipy.optimize import leastsq, curve_fit, minimize
-from scipy.special import loggamma, gammaln
+from scipy.optimize import leastsq, curve_fit, minimize, brentq
+from scipy.special import loggamma, gammaln, polygamma, digamma
+
+
+
 import lmfit
 from lmfit import Minimizer, create_params, fit_report, conf_interval
 # numdifftools also installed
@@ -637,6 +640,9 @@ def make_param_mle_otu_dict(min_occupancy=1, n_bootstrap=1000):
     param_dict['data']['clr_afd'] = {}
     param_dict['beta'] = {}
     param_dict['sigma'] = {}
+    param_dict['beta_corrected'] = {}
+    param_dict['sigma_corrected'] = {}
+
     # LRT init
     param_dict['lrt_pvalue'] = {}
     param_dict['lrt_lambda']    = {}
@@ -706,6 +712,8 @@ def make_param_mle_otu_dict(min_occupancy=1, n_bootstrap=1000):
 
                 param_dict['beta'][data_type] = []
                 param_dict['sigma'][data_type] = []
+                param_dict['beta_corrected'][data_type] = []
+                param_dict['sigma_corrected'][data_type] = []
 
 
             # get beta estimate
@@ -724,6 +732,31 @@ def make_param_mle_otu_dict(min_occupancy=1, n_bootstrap=1000):
             best_result_mle = second_round_optimization_mle(result_brute, fitter, beta_estimate, n_jobs=-1)
             best_params_mle = best_result_mle.params
             #ci = conf_interval(fitter, best_result_mle, sigmas=[0.95])
+
+            # compute beta_corrected from log residuals
+            # reconstruct fitted mean at each observed time point
+            amp_mle        = best_params_mle['amp'].value
+            freq_mle       = best_params_mle['freq'].value
+            phase_mle      = best_params_mle['phase'].value
+            param_mean_mle = best_params_mle['param_mean'].value
+
+            x_bar_fitted = param_mean_mle * numpy.exp(amp_mle * numpy.sin(freq_mle * days_afd_clean + phase_mle))
+            # log residuals: ln(x) - ln(x_bar)
+            log_resid = numpy.log(afd_clean) - numpy.log(x_bar_fitted)
+
+            # invert psi_1(beta) = Var[residuals]
+            resid_var = numpy.var(log_resid)
+
+            try:
+                beta_corrected = brentq(lambda b: polygamma(1, b) - resid_var, a=1e-6, b=1e4)
+            except ValueError:
+                # fallback if var is outside trigamma range
+                beta_corrected = beta_estimate
+
+            sigma_corrected = 2.0 / (1.0 + beta_corrected)
+
+            param_dict['beta_corrected'][data_type].append(beta_corrected)
+            param_dict['sigma_corrected'][data_type].append(sigma_corrected)
 
             for p in param_no_method_all:
                 param_dict['%s_mle' % p][data_type].append(best_params_mle[p].value)
@@ -746,7 +779,7 @@ def make_param_mle_otu_dict(min_occupancy=1, n_bootstrap=1000):
                 param_dict['lrt_boot_dist'][data_type]  = []
 
             
-            p_value, lambda_obs, lambda_boot = parametric_bootstrap_lrt(days = days_afd_clean, afd = afd_clean, best_params_mle = best_params_mle, beta_estimate = beta_estimate, params_template = params, n_bootstrap = n_bootstrap, n_jobs  = -1)
+            p_value, lambda_obs, lambda_boot = parametric_bootstrap_lrt(days = days_afd_clean, afd = afd_clean, best_params_mle = best_params_mle, beta_estimate = beta_corrected, params_template = params, n_bootstrap = n_bootstrap, n_jobs  = -1)
             
             param_dict['lrt_pvalue'][data_type].append(p_value)
             param_dict['lrt_lambda'][data_type].append(lambda_obs)
@@ -1623,7 +1656,7 @@ def plot_time_vs_abundance_clr(data_type='RNA', otu_to_remove=None, method='mle'
             phase = param_dict['phase_%s' % method][data_type][c]
             param_mean = param_dict['param_mean_%s' % method][data_type][c]
             #upper_bound = param_dict['upper_bound'][data_type][c]
-            beta = param_dict['beta'][data_type][c]
+            beta = param_dict['beta_corrected'][data_type][c]
             sigma = (2/(beta+1))
             
             days_range = numpy.linspace(min(days_c), max(days_c), 1000)
@@ -1633,7 +1666,7 @@ def plot_time_vs_abundance_clr(data_type='RNA', otu_to_remove=None, method='mle'
             else:
                 model_prediction = amp*numpy.sin(freq*days_range+phase) + numpy.log(param_mean) + numpy.log(1 - sigma/2)
 
-            ax.plot(days_range, model_prediction, ls='-', lw=3, c=utils.dna_rna_color_dict[data_type], zorder=1)
+            ax.plot(days_range, model_prediction, ls='-', lw=3, c=utils.dna_rna_color_dict[data_type], zorder=1, label=r'$\left\langle \mathrm{ln} \, x_{i}(t) \right\rangle$')
 
             ax.scatter(days_c, afd_c, s=8, alpha=1, c=utils.dna_rna_color_dict[data_type], zorder=2)
             #ax.axhline(y=0, ls=':', lw=2, zorder=0, c='k')#')
@@ -1649,8 +1682,8 @@ def plot_time_vs_abundance_clr(data_type='RNA', otu_to_remove=None, method='mle'
             #max_ = numpy.absolute(max(residuals))
             #ax.set_ylim([-1*max_, max_])
 
-            #if (chunk_idx == 0) and (c_idx == 0):
-            #    ax.legend(loc='upper right', fontsize=6)
+            if (chunk_idx == 0) and (c_idx == 0):
+                ax.legend(loc='upper right', fontsize=6)
 
             asv_count += 1
 
@@ -1788,34 +1821,57 @@ def plot_time_vs_clr_ratio(method='mle'):
             afd_dna_c = afd_dna_c[to_keep_dna_idx]
             afd_rna_c = afd_rna_c[to_keep_dna_idx]
 
-            amp_dna = param_dict['amp_%s' % method]['DNA'][c]
-            amp_rna = param_dict['amp_%s' % method]['RNA'][c]
+            amp_dna_c = param_dict['amp_%s' % method]['DNA'][c]
+            amp_rna_c = param_dict['amp_%s' % method]['RNA'][c]
 
-            freq_dna = param_dict['freq_%s' % method]['DNA'][c]
-            freq_rna = param_dict['freq_%s' % method]['RNA'][c]
+            freq_dna_c = param_dict['freq_%s' % method]['DNA'][c]
+            freq_rna_c = param_dict['freq_%s' % method]['RNA'][c]
 
-            phase_dna = param_dict['phase_%s' % method]['DNA'][c]
-            phase_rna = param_dict['phase_%s' % method]['RNA'][c]
+            phase_dna_c = param_dict['phase_%s' % method]['DNA'][c]
+            phase_rna_c = param_dict['phase_%s' % method]['RNA'][c]
             
-            param_mean_dna = param_dict['param_mean_%s' % method]['DNA'][c]
-            param_mean_rna = param_dict['param_mean_%s' % method]['RNA'][c]
+            param_mean_dna_c = param_dict['param_mean_%s' % method]['DNA'][c]
+            param_mean_rna_c = param_dict['param_mean_%s' % method]['RNA'][c]
+
+            sigma_dna_c = param_dict['sigma_corrected']['DNA'][c]
+            sigma_rna_c = param_dict['sigma_corrected']['DNA'][c]
+
+            beta_dna_c = (2 - sigma_dna_c) / sigma_dna_c
+            beta_rna_c = (2 - sigma_rna_c) / sigma_rna_c
+
+            # species-specific constants J_i^s = psi(beta) - ln(beta) + ln(1 - sigma/2) + ln(K0)
+            M_dna = (digamma(beta_dna_c) - numpy.log(beta_dna_c) + numpy.log(1 - sigma_dna_c / 2) + numpy.log(param_mean_dna_c))
+            M_rna = (digamma(beta_rna_c) - numpy.log(beta_rna_c) + numpy.log(1 - sigma_rna_c / 2) + numpy.log(param_mean_rna_c))
+            delta_M = M_rna - M_dna
+
+            timescale_dna_c = 2*numpy.pi/freq_dna_c
+            timescale_rna_c = 2*numpy.pi/freq_rna_c
+
+            
+            
+            diff_afd_c = afd_rna_c - afd_dna_c
 
             # rescale AFD for sine calculation
-            rescaled_afd_dna_c = (afd_dna_c - numpy.log(param_mean_dna))/amp_dna
-            rescaled_afd_rna_c = (afd_rna_c - numpy.log(param_mean_rna))/amp_rna
+            #rescaled_afd_dna_c = (afd_dna_c - numpy.log(param_mean_dna))/amp_dna
+            #rescaled_afd_rna_c = (afd_rna_c - numpy.log(param_mean_rna))/amp_rna
 
-            diff_rescaled_afd_c = rescaled_afd_rna_c - rescaled_afd_dna_c
+            #diff_rescaled_afd_c = rescaled_afd_rna_c - rescaled_afd_dna_c
 
             days_range = numpy.linspace(min(days_dna_c), max(days_dna_c), 1000)
-            rescaled_days_dna_c = (freq_dna*days_range) + phase_dna
-            rescaled_days_rna_c = (freq_rna*days_range) + phase_rna
-            sine_diff_prediction = 2*numpy.sin((rescaled_days_rna_c - rescaled_days_dna_c)/2)*numpy.cos((rescaled_days_rna_c + rescaled_days_dna_c)/2)
+            # Sinusoidal envelopes
+            K_dna = amp_dna_c * numpy.sin(2 * numpy.pi * days_range / timescale_dna_c + phase_dna_c)
+            K_rna = amp_rna_c * numpy.sin(2 * numpy.pi * days_range / timescale_rna_c + phase_rna_c)
 
-            ax.plot(days_range, sine_diff_prediction, ls='-', lw=3, c=utils.dna_rna_color_dict['ratio'], zorder=2, label='RNA - DNA sine functions')
+            expected_rna_dna = delta_M + K_rna - K_dna
 
-            ax.scatter(days_rna_c, diff_rescaled_afd_c, s=8, alpha=1, c=utils.dna_rna_color_dict['ratio'], zorder=1)
+            #rescaled_days_dna_c = (freq_dna*days_range) + phase_dna
+            #rescaled_days_rna_c = (freq_rna*days_range) + phase_rna
+            #sine_diff_prediction = 2*numpy.sin((rescaled_days_rna_c - rescaled_days_dna_c)/2)*numpy.cos((rescaled_days_rna_c + rescaled_days_dna_c)/2)
+
+            ax.plot(days_range, expected_rna_dna, ls='-', lw=3, c=utils.dna_rna_color_dict['ratio'], zorder=2, label=r'$\left\langle \mathrm{ln} \, x_{i}(t) \right\rangle^{\mathrm{rRNA}} - \left\langle \mathrm{ln} \, x_{i}(t) \right\rangle^{\mathrm{rDNA}}$')
+            ax.scatter(days_rna_c, diff_afd_c, s=8, alpha=1, c=utils.dna_rna_color_dict['ratio'], zorder=1)
             ax.set_xlabel("Time (days)", fontsize=10)
-            ax.set_ylabel("Rescaled CLR-transformed " + utils.rescaled_label_clr_dict['ratio'], fontsize=10)
+            ax.set_ylabel("CLR-transformed " + utils.rescaled_label_clr_dict['ratio'], fontsize=10)
             #ax.set_title('ASV %d' % asv_count, fontsize=11)
 
             ax.set_title('ASV %d (%s)' % (asv_count+1, taxonomy_dict[otu_labels[asv_count]]['family']), fontsize=11)
@@ -2007,7 +2063,7 @@ if __name__ == "__main__":
     print("Running...")
 
     # Infer parameters
-    #make_param_mle_otu_dict(n_bootstrap=1000)
+    make_param_mle_otu_dict(n_bootstrap=1000)
     #make_param_env_dict()
     
     #
@@ -2024,7 +2080,7 @@ if __name__ == "__main__":
     #print(numpy.mean(delta_days), numpy.std(delta_days))
 
 
-    make_flat_file_for_gam()
+    #make_flat_file_for_gam()
 
 
 

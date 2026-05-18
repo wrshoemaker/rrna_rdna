@@ -59,7 +59,7 @@ for data_type_idx, data_type in enumerate(['DNA', 'RNA']):
     ax.fill_between(occupancy_range, slope_all - std_err_all, slope_all + std_err_all, alpha=0.25, color=utils.dna_rna_color_dict[data_type], label='Std. err.')
     ax.set_xlabel('Minimum ASV occupancy', fontsize=12)
     ax.set_ylabel('Std dev. normalized by mean absolute\nCLR-transformed abund., ' r'$\frac{\sigma_{\hat{c}_{i}}}{\overline{|\hat{c}_{i}|}}$', fontsize=12)
-    ax.set_title(data_type, fontsize=16, color=utils.dna_rna_color_dict[data_type], fontweight='bold')
+    ax.set_title(utils.rescaled_label_clr_dict[data_type], fontsize=16, color=utils.dna_rna_color_dict[data_type], fontweight='bold')
     #ax.axhline(y=0, ls=':', lw=3, c='k', zorder=3)
 
     ax.set_xlim([0.8, 1])

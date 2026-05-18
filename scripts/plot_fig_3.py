@@ -118,8 +118,8 @@ ax_timescale_rho.set_xlim([min_param, max_param])
 ax_timescale_rho.set_ylim([min_param, max_param])
 ax_timescale_rho.plot([min_param, max_param], [min_param, max_param], lw=2, ls=':', c='k', zorder=1, label='1:1')
 
-ax_timescale_rho.set_xlabel(r'$\tau_{i}^{\mathrm{env}}$' + ', DNA', fontsize=8)
-ax_timescale_rho.set_ylabel(r'$\tau_{i}^{\mathrm{env}}$' + ', RNA', fontsize=8)
+ax_timescale_rho.set_xlabel(r'$\tau_{i}^{\mathrm{env}}$' + ', rDNA', fontsize=8)
+ax_timescale_rho.set_ylabel(r'$\tau_{i}^{\mathrm{env}}$' + ', rRNA', fontsize=8)
 
 ax_timescale_rho.legend(loc='upper left', fontsize=5)
 
@@ -155,8 +155,8 @@ ax_amp_rho.set_xlim([min_param, max_param])
 ax_amp_rho.set_ylim([min_param, max_param])
 ax_amp_rho.plot([min_param, max_param], [min_param, max_param], lw=2, ls=':', c='k', zorder=1, label='1:1')
 
-ax_amp_rho.set_xlabel(r'$A_{i}$' + ', DNA', fontsize=8)
-ax_amp_rho.set_ylabel(r'$A_{i}$' + ', RNA', fontsize=8)
+ax_amp_rho.set_xlabel(r'$A_{i}$' + ', rDNA', fontsize=8)
+ax_amp_rho.set_ylabel(r'$A_{i}$' + ', rRNA', fontsize=8)
 
 #ax_amp_rho.legend(loc='upper left', fontsize=5)
 
@@ -170,7 +170,7 @@ ax_amp_rho.set_title(r'$\rho^{2} = $' + str(round(amp_rho**2, 3)), fontsize=8)
 # plot phase
 ###
 ax_phase.hist(delta_phase_new, 8, histtype='step', density=True, stacked=True, lw=2, fill=False, color='k')
-ax_phase.set_xlabel('Phase difference, ' + r'$\Delta \psi_{i} = \psi_{i}^{\mathrm{RNA}} -\psi_{i}^{\mathrm{DNA}}$', fontsize=11, zorder=3)
+ax_phase.set_xlabel('Phase difference, ' + r'$\Delta \psi_{i} = \psi_{i}^{\mathrm{rRNA}} -\psi_{i}^{\mathrm{rDNA}}$', fontsize=11, zorder=3)
 #ax_phase.axvline(x=0, ls=':', color='k', lw=3, label=r'$\Delta \psi_{i}=0$', zorder=2)
 ax_phase.axvline(x=numpy.mean(delta_phase_new), ls=':', color='k', lw=3, label='Mean ' + r'$\Delta \psi_{i}$' + ' = ' + str(round(numpy.mean(delta_phase_new), 3)), zorder=2)
 
@@ -193,8 +193,8 @@ phase_range = numpy.linspace(-numpy.pi, numpy.pi, 1000)
 ax_phase.fill_between(phase_range, y_max, where=phase_range > 0, facecolor= utils.dna_rna_color_dict['RNA'], alpha=0.5, zorder=1)
 ax_phase.fill_between(phase_range,y_max, where=phase_range < 0, facecolor= utils.dna_rna_color_dict['DNA'], alpha=0.5, zorder=1)
 
-ax_phase.text(0.81, 0.8, 'RNA ' + r'$\rightarrow$' + ' DNA', fontsize=10, ha='center', va='center', transform=ax_phase.transAxes)
-ax_phase.text(0.21, 0.8, 'DNA ' + r'$\rightarrow$' + ' RNA', fontsize=10, ha='center', va='center', transform=ax_phase.transAxes)
+ax_phase.text(0.81, 0.8, 'rRNA ' + r'$\rightarrow$' + ' rDNA', fontsize=10, ha='center', va='center', transform=ax_phase.transAxes)
+ax_phase.text(0.21, 0.8, 'rDNA ' + r'$\rightarrow$' + ' rRNA', fontsize=10, ha='center', va='center', transform=ax_phase.transAxes)
 
 ax_phase.legend(loc='upper left', fontsize=6)
 

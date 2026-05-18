@@ -17,6 +17,7 @@ import tsdata_to_cpsd
 cpsd_dict_path = '%scpsd_dict.pickle' % config.data_directory
 param_dict = pickle.load(open(sine_parameter_utils.param_otu_mle_dict_path, "rb"))
 otu_labels = param_dict['otu_labels']
+mean_delta_days = 7.19672131147541
 
 # channels
 #n = len(param_dict['data']['clr_afd']['DNA'][0])
@@ -125,6 +126,43 @@ def make_cpsd_dict(n_null=10000):
 
 
 
+def test_cpsd_lag():
+
+    days = numpy.asarray(param_dict['data']['days']['DNA'][0])
+    afd_dna = numpy.sin(days)
+    # RNA LAGS DNA
+    # DNA -> RNA
+    afd_rna = numpy.sin(days - 5) 
+
+    rna_dna = numpy.column_stack((afd_rna, afd_dna))
+
+    S = tsdata_to_cpsd.cpsd_welch_matlab(rna_dna, n=n, h=h, nfft=nfft, window=window, noverlap=noverlap, fs=1.0)
+    S_xy = S[0,1,:]
+
+    # Phase spectrum (radians)
+    phase_xy = numpy.angle(S_xy)
+    # Avoid division by zero at DC
+    freqs = numpy.linspace(0, fs/2, h)
+    freqs_nonzero = freqs.copy()
+    # ignore 0 Hz for lag calculation
+    freqs_nonzero[0] = numpy.nan  
+    # Time lag at each frequency (same units as 1/fs, e.g., weeks)
+    time_lag = phase_xy / (2 * numpy.pi * freqs_nonzero)
+
+    # magnitude-squared coherence
+    coh_xy = numpy.abs(S_xy)**2 / (S[0,0,:] * S[1,1,:])
+    mask = coh_xy > min_coh_xy
+    #avg_lag = numpy.nanmean(time_lag[mask])
+
+    mask_scaled = (~numpy.isnan(time_lag))*mask        
+    avg_lag_scaled_coh_xy = numpy.real( sum((time_lag[mask_scaled]) * (coh_xy[mask_scaled])) / sum(coh_xy[mask_scaled]))
+
+
+    print(avg_lag_scaled_coh_xy)
+
+
+
+
 def plot_cpsd_lag():
 
     fig = plt.figure(figsize = (20, 20))
@@ -150,7 +188,6 @@ def plot_cpsd_lag():
             p_value_lag = cpsd_dict[otu_label_c]['p_value_lag']
 
             # convert to days
-            mean_delta_days = 7.19672131147541
             avg_lag_scaled_days = avg_lag_scaled*mean_delta_days
             avg_lag_scaled_null_days = avg_lag_scaled_null*mean_delta_days
 
@@ -162,7 +199,9 @@ def plot_cpsd_lag():
             ax.set_ylim([0, max_height])
 
             ax.axvline(x=avg_lag_scaled_days, ls=':', c='k', lw=5, zorder=3, label='Observed')
-            ax.set_xlabel("Mean lag time b/w RNA and DNA (d)", fontsize=10)
+            #ax.set_xlabel("Mean lag time b/w RNA and DNA (d)", fontsize=10)
+            ax.set_xlabel("Mean cross-spectral phase delay (days), " + r'$\overline{\mathcal{T}} $', fontsize=11)
+
             ax.set_ylabel("Probability density", fontsize=12)
             #ax.set_xlim([-1*max_logfold, max_logfold])
             ax.set_title('ASV %d (%s)\n' % (asv_count + 1, taxonomy_dict[otu_label_c]['family']) + r'$P=$' + str(p_value_lag), fontsize=12)
@@ -203,6 +242,54 @@ def test_significance_cpsd_all_otus():
 
 
 
+def plot_cpsd_lag_global():
+
+    
+    cpsd_dict =  pickle.load(open(cpsd_dict_path, 'rb'))
+    otu_label_all = list(cpsd_dict.keys())
+
+    n_iter = len(cpsd_dict[otu_label_all[0]]['avg_lag_scaled_null'])
+    avg_lag_scaled_avg = numpy.mean([ cpsd_dict[o]['avg_lag_scaled'] for o in otu_label_all])
+    avg_lag_scaled_null_avg = numpy.asarray([numpy.mean([cpsd_dict[o]['avg_lag_scaled_null'][i] for o in otu_label_all]) for i in range(n_iter)])
+
+    avg_lag_scaled_avg_days = avg_lag_scaled_avg*mean_delta_days
+    avg_lag_scaled_null_avg_days = avg_lag_scaled_null_avg*mean_delta_days
+
+    p_value = utils.compute_pvalue(avg_lag_scaled_avg, avg_lag_scaled_null_avg)
+
+    print(p_value)
+    
+    fig, ax = plt.subplots(figsize=(4.5,4))
+    counts, bin_edges, patches = ax.hist(avg_lag_scaled_null_avg_days, bins=20, density=True, histtype='step', alpha=1, lw=6, color='k', zorder=2, label='Phase-randomized null')
+
+    max_height = counts.max()*1.1
+    max_abs_width = 1.1*numpy.abs(avg_lag_scaled_avg_days)
+
+    ax.axvline(x=avg_lag_scaled_avg_days, ls=':', c='k', lw=5, zorder=3, label='Observed')
+    ax.set_xlabel("Mean cross-spectral phase delay (days), " + r'$\overline{\mathcal{T}_{\mathrm{global}}}$', fontsize=12)
+    ax.set_ylabel("Probability density", fontsize=12)
+
+    ax.set_xlim([-1*max_abs_width, max_abs_width])
+    ax.set_ylim([0, max_height])
+
+    ax.text(0.76, 0.85, 'rRNA ' + r'$\rightarrow$' + ' rDNA', fontsize=13, ha='center', va='center', transform=ax.transAxes)
+    ax.text(0.25, 0.85, 'rDNA ' + r'$\rightarrow$' + ' rRNA', fontsize=13, ha='center', va='center', transform=ax.transAxes)
+
+
+    lag_range = numpy.linspace(-1*max_abs_width, max_abs_width, num=10000)
+    ax.fill_between(lag_range, max_height, where=lag_range > 0, facecolor= utils.dna_rna_color_dict['RNA'], alpha=0.5, zorder=1)
+    ax.fill_between(lag_range,max_height, where=lag_range < 0, facecolor= utils.dna_rna_color_dict['DNA'], alpha=0.5, zorder=1)
+    
+    #ax.legend(loc='upper left', fontsize=10)
+    ax.legend(loc='lower center', bbox_to_anchor=(0.5, 1.02), ncols=3, borderaxespad=0)
+
+    fig.subplots_adjust(hspace=0.4, wspace=0.40)
+    fig_name = "%scpsd_lag_hist_global.png" % (config.analysis_directory)
+    fig.savefig(fig_name, format='png', bbox_inches = "tight", pad_inches = 0.4, dpi = 600)
+    plt.close()
+
+
+
 
 if __name__ == "__main__":
 
@@ -211,4 +298,8 @@ if __name__ == "__main__":
     #make_cpsd_dict()
     #plot_cpsd_lag()
 
-    test_significance_cpsd_all_otus()
+    #test_significance_cpsd_all_otus()
+
+    plot_cpsd_lag_global()
+
+    #test_cpsd_lag()

@@ -7,8 +7,10 @@ import utils
 import matplotlib.pyplot as plt
 from matplotlib import cm, colors
 from scipy import stats
+from scipy.special import polygamma, iv
 # numdifftools also installed
 import pickle
+
 
 import sine_parameter_utils
 
@@ -24,6 +26,34 @@ min_n_obs = 10
 #def autocorrelation(tau, delta_t):
 
 #label_dict = {'DNA':  r'$R_{\tilde{X}_{i}}(\Delta t)$'}
+
+
+
+
+def calculate_autocorrelation_gamma_time_varying_mean(delta_t, A_i, tau_i, sigma_i):
+
+    # predicted autocorrelation of ln x_i(t)
+    delta_t = numpy.asarray(delta_t)
+
+    # shape parameter of Gamma distribution
+    beta_i = (2 - sigma_i) / sigma_i
+
+    # trigamma function: variance of ln x for Gamma(beta_i)
+    trigamma_beta = polygamma(1, beta_i)
+
+    # signal and noise variance
+    signal_var = A_i**2 / 2
+    noise_var  = trigamma_beta
+    total_var  = signal_var + noise_var
+
+    # attenuated cosine (valid for delta_t != 0)
+    rho = (signal_var / total_var) * numpy.cos(2 * numpy.pi * delta_t / tau_i)
+
+    # enforce rho(0) = 1
+    rho[delta_t == 0] = 1.0
+
+    return rho
+
 
 
 def make_autocorrelation_dict():
@@ -48,17 +78,20 @@ def make_autocorrelation_dict():
     env_variable_array_rescaled = (env_variable_array - param_env_dict['param_mean_leastsq'][0])/param_env_dict['amp_leastsq'][0]
     autocorr_obs_env, delta_t_env, n_env = utils.calculate_autocorrelation(env_variable_array_rescaled, days_env)
 
+    #calculate_autocorrelation_gamma_time_varying_mean
     
     autocorr_dict = {}
     autocorr_dict['env'] = {}
     autocorr_dict['env']['water_temp'] = {}
     autocorr_dict['env']['water_temp']['delta_t_env'] = delta_t_env.tolist()
     autocorr_dict['env']['water_temp']['autocorr_obs_env'] = autocorr_obs_env.tolist()
-
     autocorr_dict['otu'] = {}
 
     idx_all = list(range(len(param_dict['otu_labels'])))
 
+
+    #err_all = []
+    #iv_all = []
     for otu_i_idx in idx_all:
 
         otu_i = param_dict['otu_labels'][otu_i_idx]
@@ -67,8 +100,11 @@ def make_autocorrelation_dict():
 
         for data_type in ['RNA', 'DNA']:
 
-            param_mean_leastsq_i = param_dict['param_mean_mle'][data_type][otu_i_idx]
-            amp_leastsq_i = param_dict['amp_mle'][data_type][otu_i_idx]
+            param_mean_i = param_dict['param_mean_mle'][data_type][otu_i_idx]
+            amp_i = param_dict['amp_mle'][data_type][otu_i_idx]
+            tau_i = 2*numpy.pi/param_dict['freq_mle'][data_type][otu_i_idx]
+
+            sigma_i = param_dict['sigma_corrected'][data_type][otu_i_idx]
 
             afd_i = param_dict['data']['clr_afd'][data_type][otu_i_idx]
             days_i = param_dict['data']['days'][data_type][otu_i_idx]
@@ -76,10 +112,10 @@ def make_autocorrelation_dict():
             afd_i = numpy.asarray(afd_i)
             days_i = numpy.asarray(days_i)
             
-            afd_i_rescaled = (afd_i - param_mean_leastsq_i)/amp_leastsq_i
+            #afd_i_rescaled = (afd_i - param_mean_leastsq_i)/amp_leastsq_i
 
-            autocorr_obs_i, delta_t_i, n_i = utils.calculate_autocorrelation(afd_i_rescaled, days_i)
-
+            autocorr_obs_i, delta_t_i, n_i = utils.calculate_autocorrelation(afd_i, days_i)
+            
             delta_t_inter = numpy.intersect1d(delta_t_i, delta_t_env)
 
             delta_t_i_to_keep_idx = [numpy.where(delta_t_i==t)[0][0] for t in delta_t_inter]
@@ -87,11 +123,24 @@ def make_autocorrelation_dict():
 
             rho_autocorr_clr_vs_temp = numpy.corrcoef(autocorr_obs_i[delta_t_i_to_keep_idx], autocorr_obs_env[delta_t_env_to_keep_idx])[0,1]
 
+            autocorr_pred_i = calculate_autocorrelation_gamma_time_varying_mean(delta_t_i, amp_i, tau_i, sigma_i)
+
+
+            #err_i = numpy.mean(numpy.sqrt((autocorr_pred_i - autocorr_obs_i)**2))
+            #iv_i = numpy.log(iv(0, amp_i))
+
+            #err_all.append(err_i)
+            #iv_all.append(iv_i)
+
+            #print(sigma_i, iv_i, err_i)
             autocorr_dict['otu'][otu_i][data_type] = {}
-            autocorr_dict['otu'][otu_i][data_type]['delta_t'] = delta_t_i.tolist()
-            autocorr_dict['otu'][otu_i][data_type]['autocorr_obs'] = autocorr_obs_i.tolist()
+            autocorr_dict['otu'][otu_i][data_type]['delta_t'] = delta_t_i
+            autocorr_dict['otu'][otu_i][data_type]['autocorr_obs'] = autocorr_obs_i
+            autocorr_dict['otu'][otu_i][data_type]['autocorr_pred'] = autocorr_pred_i
             autocorr_dict['otu'][otu_i][data_type]['rho_autocorr_clr_vs_temp'] = rho_autocorr_clr_vs_temp
 
+
+    #print(numpy.corrcoef(err_all,iv_all)[1,0])
 
 
     sys.stderr.write("Saving correlation dictionary...\n")
@@ -103,12 +152,12 @@ def make_autocorrelation_dict():
 
 def plot_autocorrelation_otu(data_type):
 
-    param_dict = pickle.load(open(sine_parameter_utils.param_otu_mle_dict_path, "rb"))
+    #param_dict = pickle.load(open(sine_parameter_utils.param_otu_mle_dict_path, "rb"))
     autocorr_dict = pickle.load(open(autocorrelation_dict_path, "rb"))
 
     otu_labels = list(autocorr_dict['otu'].keys())
-    delta_t_env = autocorr_dict['env']['water_temp']['delta_t_env']
-    autocorr_obs_env = autocorr_dict['env']['water_temp']['autocorr_obs_env']
+    #delta_t_env = autocorr_dict['env']['water_temp']['delta_t_env']
+    #autocorr_obs_env = autocorr_dict['env']['water_temp']['autocorr_obs_env']
 
     fig = plt.figure(figsize = (20, 20))
     fig.subplots_adjust(bottom= 0.15)
@@ -122,12 +171,12 @@ def plot_autocorrelation_otu(data_type):
         for c_idx, c in enumerate(chunk):
 
             ax = plt.subplot2grid((len(chunk_all), len(chunk_all[0])), (chunk_idx, c_idx))
-
-
-            delta_t_c = numpy.asarray(autocorr_dict['otu'][otu_labels[c]][data_type]['delta_t'])
-            autocorr_obs_c = autocorr_dict['otu'][otu_labels[c]][data_type]['autocorr_obs']
             
-            autocorr_pred_c = 0.5*numpy.cos((delta_t_c*param_dict['freq_mle'][data_type][c]))
+            delta_t_c = autocorr_dict['otu'][otu_labels[asv_count]][data_type]['delta_t']
+            autocorr_obs_c = autocorr_dict['otu'][otu_labels[asv_count]][data_type]['autocorr_obs']
+            autocorr_pred_c = autocorr_dict['otu'][otu_labels[asv_count]][data_type]['autocorr_pred']
+            #autocorr_pred_c = 0.5*numpy.cos((delta_t_c*param_dict['freq_mle'][data_type][c]))
+            
             ax.scatter(delta_t_c, autocorr_obs_c, s=7, alpha=1, zorder=1, c=utils.dna_rna_color_dict[data_type], label='Observed')
             ax.plot(delta_t_c, autocorr_pred_c, ls='-', lw=3, zorder=2, c=utils.dna_rna_color_dict[data_type], label='Predicted')
 
@@ -152,6 +201,9 @@ def plot_autocorrelation_otu(data_type):
 
 
 
+#def plot_autocorr_diagnosis():
+
+
 
 
 
@@ -166,7 +218,7 @@ if __name__ == "__main__":
 
     args = parser.parse_args()    
 
-    make_autocorrelation_dict()
+    #make_autocorrelation_dict()
 
     plot_autocorrelation_otu(args.data_type)
 

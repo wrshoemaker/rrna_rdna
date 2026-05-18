@@ -92,7 +92,7 @@ for data_type_idx, data_type in enumerate(['DNA', 'RNA']):
 
 
     for ax_ in [ax_data, ax_data_rescaled]:
-        ax_.set_title(data_type, color=utils.dna_rna_color_dict[data_type], fontweight='bold', fontsize=14)
+        ax_.set_title(utils.rescaled_label_clr_dict[data_type], color=utils.dna_rna_color_dict[data_type], fontweight='bold', fontsize=14)
         ax_.yaxis.set_tick_params(labelsize=7)
 
 
@@ -157,7 +157,7 @@ for data_type_idx, data_type in enumerate(['DNA', 'RNA']):
 
     bins_mean_all_to_keep_no_nan = bins_mean_all_to_keep[(~numpy.isnan(bins_mean_all_to_keep)) & (~numpy.isnan(bins_occupancies))]
     bins_occupancies_no_nan = bins_occupancies[(~numpy.isnan(bins_mean_all_to_keep)) & (~numpy.isnan(bins_occupancies))]
-    ax_data_rescaled.scatter(bins_mean_all_to_keep_no_nan, bins_occupancies_no_nan, s=17, marker="x", c='k', zorder=4, label='Mean over species')
+    ax_data_rescaled.scatter(bins_mean_all_to_keep_no_nan, bins_occupancies_no_nan, s=17, marker="x", c='k', zorder=4, label='Mean over ASVs')
 
     rescaled_days_range = numpy.linspace(min(rescaled_days_all), max(rescaled_days_all), 1000)
     ax_data_rescaled.plot(rescaled_days_range, numpy.sin(rescaled_days_range), lw=1.5, c='k', label='Sine function (not a fit)', zorder=3)

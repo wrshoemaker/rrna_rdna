@@ -36,11 +36,11 @@ transformation_color_dict = {'rel': '#FFA500', 'clr': '#1f7e3b'}
 
 phototroph_asv_all = ['TACGGAGGATGCAAGCGTTATCCGGAATGATTGGGCGTAAAGGGTCCGCAGGTGGCATTGTAAGTCTGCTGTTAAAGAGTTTGGCTCAACCAAATAAGAGCAGTGGAAACTACAAAGCTAGAGTGTGGTCGGGGCAGAGGGAATTCCTGGTGTAGCGGTGAAATGCGTAGATATCAGGAAGAACACCAGTGGCGAAGGCGCTCTGCTAGGCCGAGACTGACACTGAGGGACGAAAGCTAGGGGAGCGAATGGG', 'TACGGGGGATGCAAGCGTTATCCGGAATGATTGGGCGTAAAGAGTCCGTAGGTAGTCATCCAAGTCTGCTGTTAAAGAGCGAGGCTTAACCTCGTAAAGGCAGTGGAAACTGGAAGACTAGAGTGTAGTAGGGGCAGAGGGAATTCCTGGTGTAGCGGTGAAATGCGTAGAGATCAGGAAGAACACCGGTGGCGAAGGCGCTCTGCTGGGCTATAACTGACACTGAGGGACGAAAGCTAGGGGAGCGAATGGG']
 
-rescaled_label_dict = {'RNA':'Rescaled RNA, ' + r'$r_{i}(t)$', 'DNA': 'Rescaled DNA, ' + r'$d_{i}(i)$', 'ratio': 'Rescaled RNA:DNA, ' + r'$\phi_{i}(t)$'}
+rescaled_label_dict = {'RNA':'Rescaled rRNA, ' + r'$r_{i}(t)$', 'DNA': 'Rescaled rDNA, ' + r'$d_{i}(i)$', 'ratio': 'Rescaled rRNA:rDNA, ' + r'$\phi_{i}(t)$'}
 #rescaled_label_dict = {'RNA':'Rescaled RNA, ' + r'$r_{i}(t)$', 'DNA': 'Rescaled DNA, ' + r'$d_{i}(i)$', 'ratio': 'Rescaled RNA:DNA, ' + r'$\phi_{i}(t)$'}
-rescaled_label_clr_dict = {'RNA':'RNA', 'DNA': 'DNA', 'ratio': 'RNA - DNA'}
+rescaled_label_clr_dict = {'RNA':'rRNA', 'DNA': 'rDNA', 'ratio': 'rRNA - rDNA'}
 
-sample_label_dict = {'RNA': 'RNA', 'DNA':'DNA', 'ratio': 'RNA:DNA', 'RNA_DNA': 'RNA:DNA'}
+sample_label_dict = {'RNA': 'rRNA', 'DNA':'rDNA', 'ratio': 'rRNA:rDNA', 'RNA_DNA': 'rRNA:DNAr'}
 
 data_type_all = ['DNA', 'RNA', 'ratio']
 env_variables_all = ['water_temp', 'specific_conductivity', 'dissolved_oxygen', 'salinity', 'secchi_depth', 'ph']

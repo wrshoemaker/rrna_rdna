@@ -50,8 +50,8 @@ sem_rna = numpy.std(n_reads_rna)/numpy.sqrt(len(n_reads_rna))
 print("DNA mean #reads = %.2f +/- %.2f" % (mean_dna, sem_dna) )
 print("RNA mean #reads = %.2f +/- %.2f" % (mean_rna, sem_rna) )
 
-label_dna = 'DNA, ' + r'$\bar{N}_{\mathrm{DNA}} = $' + "{:,}".format(int(mean_dna)) + r'$\pm$' + str(int(sem_dna)) + ' (Mean ' + r'$\pm$' + ' SEM)'
-label_rna = 'RNA, ' + r'$\bar{N}_{\mathrm{RNA}} = $' +"{:,}".format(int(mean_rna)) + r'$\pm$' + str(int(sem_rna)) + ' (Mean ' + r'$\pm$' + ' SEM)'
+label_dna = r'$\bar{N}_{\mathrm{rDNA}} = $' + "{:,}".format(int(mean_dna)) + r'$\pm$' + str(int(sem_dna)) + ' (Mean ' + r'$\pm$' + ' SEM)'
+label_rna = r'$\bar{N}_{\mathrm{rRNA}} = $' +"{:,}".format(int(mean_rna)) + r'$\pm$' + str(int(sem_rna)) + ' (Mean ' + r'$\pm$' + ' SEM)'
 
 
 

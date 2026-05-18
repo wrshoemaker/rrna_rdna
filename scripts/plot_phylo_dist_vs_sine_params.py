@@ -64,7 +64,7 @@ def plot_dist_vs_sine_parameters():
             ax = fig.add_subplot(gs[param_idx, data_type_idx])
 
             if param_idx == 0:
-                ax.set_title(data_type, fontsize=14, color=utils.dna_rna_color_dict[data_type], fontweight='bold')
+                ax.set_title(utils.rescaled_label_clr_dict[data_type], fontsize=14, color=utils.dna_rna_color_dict[data_type], fontweight='bold')
 
                
             dist_all = []
@@ -79,7 +79,7 @@ def plot_dist_vs_sine_parameters():
 
             ax.scatter(dist_all, param_delta_all, alpha=0.7, s=10, color=utils.dna_rna_color_dict[data_type], zorder=1)
 
-            ax.set_xlabel('Phylogenetic distance between OTUs, ' + r'$d_{i,j}$', fontsize=11)
+            ax.set_xlabel('Phylogenetic distance between ASVs, ' + r'$d_{i,j}$', fontsize=11)
             
             if param == 'amp':
                 label = 'Abs. diff. of amplitidues, ' + r'$ | A_{i} - A_{j} |$'

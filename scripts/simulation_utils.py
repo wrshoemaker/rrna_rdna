@@ -33,6 +33,8 @@ compare_sigma_clr_to_true_abundance_oscillating_dict_path = config.data_director
 data_collapse_simulation_path = config.data_directory + 'data_collapse_simulation.pickle'
 
 
+
+
 method_label_dict = {'log_rel': 'Rescaled log rel.', 'clr': 'CLR'}
 
 
@@ -960,6 +962,9 @@ def make_compare_clr_to_true_abundance_dict(n_iter = 10):
             mle_dict[k][sigma] = {}
             mle_dict[k][sigma]['sigma_inferred_clr'] = []
             mle_dict[k][sigma]['sigma_inferred_rel'] = []
+
+            mle_dict[k][sigma]['sigma_inferred_corrected_clr'] = []
+            mle_dict[k][sigma]['sigma_inferred_corrected_rel'] = []
             #mle_dict[k][sigma]['k_inferred'] = []
 
             print(k, sigma)

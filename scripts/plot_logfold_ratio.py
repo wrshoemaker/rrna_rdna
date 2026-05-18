@@ -68,8 +68,8 @@ for chunk_idx, chunk in enumerate(chunk_all):
         #ax.scatter(bins_afd_dna, hist_afd_dna, s=7, color=utils.dna_rna_color_dict['DNA'], alpha=0.7, lw=1)
         #ax.scatter(bins_afd_rna, hist_afd_rna, s=7, color=utils.dna_rna_color_dict['RNA'], alpha=0.7, lw=1)
 
-        ax.hist(log_ratio_dna_i[0], bins=12, density=True, histtype='step', alpha=1, lw=3, color=utils.dna_rna_color_dict['DNA'], zorder=1, label='DNA')
-        ax.hist(log_ratio_rna_i[0], bins=12, density=True, histtype='step', alpha=1, lw=3, color=utils.dna_rna_color_dict['RNA'], zorder=1, label='RNA')
+        ax.hist(log_ratio_dna_i[0], bins=12, density=True, histtype='step', alpha=1, lw=3, color=utils.dna_rna_color_dict['DNA'], zorder=1, label='rDNA')
+        ax.hist(log_ratio_rna_i[0], bins=12, density=True, histtype='step', alpha=1, lw=3, color=utils.dna_rna_color_dict['RNA'], zorder=1, label='rRNA')
 
         ax.axvline(x=0, ls=':', c='k', lw=2, zorder=2, label='Stationarity')
         ax.set_yscale('log', base=10)
