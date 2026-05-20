@@ -11,7 +11,7 @@ from mpl_toolkits.axes_grid1.inset_locator import inset_axes
 from scipy import stats, signal
 # numdifftools also installed
 import pickle
-
+import sine_parameter_utils
 
 min_occupany_afd = 1
 
@@ -24,8 +24,13 @@ days = numpy.asarray([metadata_dict[s]['day'] for s in samples[(sample_type=='RN
 delta_days = days[1:] - days[:-1]
 minor_days, major_days, major_labels = utils.get_seasonal_tick_labels()
 
+taxon_dict = utils.build_taxonomy_dict()
 
-otu_idx = numpy.where(otu_labels == 'Otu000001')[0][0]
+
+param_dict = pickle.load(open(sine_parameter_utils.param_otu_mle_dict_path, "rb"))
+asv_1 = param_dict['otu_labels'][0]
+
+otu_idx = numpy.where(otu_labels == asv_1)[0][0]
 
 
 fig = plt.figure(figsize = (4.5, 8))
@@ -66,7 +71,7 @@ for data_type_idx, data_type in enumerate(['DNA', 'RNA']):
     ax_timeseries.plot(days, afd, lw=1, alpha=1, color=utils.dna_rna_color_dict[data_type], zorder=1)
     ax_timeseries.scatter(days, afd, s=6, alpha=1, color=utils.dna_rna_color_dict[data_type], zorder=1)
     ax_timeseries.set_ylabel("Relative abundance, " + r'$\hat{x}_{i}(t)$' , fontsize=18)
-    ax_timeseries.set_yscale('log', basey=10)
+    ax_timeseries.set_yscale('log', base=10)
 
     ax_timeseries.set_xlim([0, max(days)])
     ax_timeseries.set_xticks(minor_days, minor=True)
@@ -109,7 +114,7 @@ for data_type_idx, data_type in enumerate(['DNA', 'RNA']):
     #    ax_logfold.legend(loc='upper left', fontsize=10)
 
     if data_type_idx == 0:
-        ax_timeseries.set_title('OTU 1 ('+ r'$\mathit{Anabaena}$' + ' sp.)', color='k', fontsize=18)
+        ax_timeseries.set_title('ASV 1 (' +  taxon_dict[asv_1]['family'] + ')', color='k', fontsize=18)
 
 
 

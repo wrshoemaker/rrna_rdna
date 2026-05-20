@@ -13,7 +13,7 @@ from scipy import stats, signal
 import pickle
 
 import simulation_utils
-
+import sine_parameter_utils
 
 # get empirical data
 s_by_s, otu_labels, samples = utils.load_count_data()
@@ -22,6 +22,8 @@ sample_type = numpy.asarray([metadata_dict[s]['sample_type'] for s in samples])
 days = numpy.asarray([metadata_dict[s]['day'] for s in samples[(sample_type=='RNA')]])
 
 
+param_dict = pickle.load(open(sine_parameter_utils.param_otu_mle_dict_path, "rb"))
+otu_labels_mle = numpy.asarray( param_dict['otu_labels'])
 #print(s_by_s.shape)
 
 
@@ -90,8 +92,8 @@ ax_sim_focal_reads.text(-0.1, 1.04, utils.sub_plot_labels[4], fontsize=10, fontw
 ax_sim_nonfocal_reads.text(-0.1, 1.04, utils.sub_plot_labels[5], fontsize=10, fontweight='bold', ha='center', va='center', transform=ax_sim_nonfocal_reads.transAxes)
 #ax_sim_nonfocal_reads_clr.text(-0.1, 1.04, utils.sub_plot_labels[5], fontsize=10, fontweight='bold', ha='center', va='center', transform=ax_sim_nonfocal_reads_clr.transAxes)
 
-ax_sim_focal_param.text(-0.1, 1.04, utils.sub_plot_labels[6], fontsize=10, fontweight='bold', ha='center', va='center', transform=ax_sim_focal_param.transAxes)
-ax_sim_nonfocal_param.text(-0.1, 1.04, utils.sub_plot_labels[7], fontsize=10, fontweight='bold', ha='center', va='center', transform=ax_sim_nonfocal_param.transAxes)
+ax_sim_focal_param.text(-0.09, 1.04, utils.sub_plot_labels[6], fontsize=10, fontweight='bold', ha='center', va='center', transform=ax_sim_focal_param.transAxes)
+ax_sim_nonfocal_param.text(-0.09, 1.04, utils.sub_plot_labels[7], fontsize=10, fontweight='bold', ha='center', va='center', transform=ax_sim_nonfocal_param.transAxes)
 
 
 
@@ -100,7 +102,8 @@ ax_sim_nonfocal_param.text(-0.1, 1.04, utils.sub_plot_labels[7], fontsize=10, fo
 s_by_s_rna = s_by_s[:,(sample_type=='RNA')]
 n_reads = numpy.sum(s_by_s_rna, axis=0)
 
-focal_otu_idx = numpy.where(otu_labels=='Otu000001')[0][0]
+asv_1 = otu_labels_mle[0]
+focal_otu_idx = numpy.where(otu_labels==asv_1)[0][0]
 focal_otu_afd = s_by_s_rna[focal_otu_idx,:]
 
 focal_otu_afd_rel = focal_otu_afd/n_reads
@@ -120,8 +123,8 @@ ax_data_clr.scatter(days, focal_otu_afd_clr, s=8, alpha=1, color=clr_color, zord
 ax_data.set_ylabel("Relative abundance", fontsize=11, color=rel_color, fontweight='bold')
 ax_data_clr.set_ylabel("CLR-transformed abundance", fontsize=11, color=clr_color, fontweight='bold')
 ax_data.axhline(y=1, lw=2.5, ls=':', label='Max. relative abundance', color=rel_color)
-ax_data.set_title('Observed RNA abundance of OTU 1', fontsize=12, fontweight='bold')
-ax_data.set_yscale('log', basey=10)
+ax_data.set_title('Observed rRNA of ASV 1', fontsize=12, fontweight='bold')
+ax_data.set_yscale('log', base=10)
 
 ax_data.legend(loc="lower left", fontsize=8)
 
@@ -198,8 +201,8 @@ ax_sim_nonfocal_abund.set_ylabel("True abundance", fontsize=12, color='k')
 ax_sim_nonfocal_abund.set_ylim([0.6*min(mean_afd_true_nonfocal), (1/0.2)*max(mean_afd_true_nonfocal)])
 
 
-ax_sim_focal_abund.set_title('Oscillating OTU', fontsize=12, fontweight='bold')
-ax_sim_nonfocal_abund.set_title('Non-oscillating OTU', fontsize=12, fontweight='bold')
+ax_sim_focal_abund.set_title('Oscillating ASV', fontsize=12, fontweight='bold')
+ax_sim_nonfocal_abund.set_title('Non-oscillating ASV', fontsize=12, fontweight='bold')
 
 
 
@@ -214,21 +217,21 @@ ax_sim_nonfocal_reads_clr.set_ylabel("CLR-transformed abundance", fontsize=11, c
 ax_sim_focal_reads.axhline(y=1, lw=2.5, ls=':', label='Upper bound of rel. abund.', color=rel_color)
 #ax_sim_focal_reads.set_ylim([0.2*min(10**mean_afd_logrel_focal), 1.1])
 
-ax_sim_focal_reads.set_title('Oscillating OTU + sampling', fontsize=12, fontweight='bold')
-ax_sim_nonfocal_reads.set_title('Non-oscillating OTU + sampling', fontsize=12, fontweight='bold')
+ax_sim_focal_reads.set_title('Oscillating ASV + sampling', fontsize=12, fontweight='bold')
+ax_sim_nonfocal_reads.set_title('Non-oscillating ASV + sampling', fontsize=12, fontweight='bold')
 
-ax_sim_focal_abund.set_yscale('log', basey=10)
-ax_sim_nonfocal_abund.set_yscale('log', basey=10)
+ax_sim_focal_abund.set_yscale('log', base=10)
+ax_sim_nonfocal_abund.set_yscale('log', base=10)
 
-ax_sim_focal_abund.set_yscale('log', basey=10)
-ax_sim_nonfocal_abund.set_yscale('log', basey=10)
+ax_sim_focal_abund.set_yscale('log', base=10)
+ax_sim_nonfocal_abund.set_yscale('log', base=10)
 
 #ax_sim_focal_reads_labels = [item.get_text() for item in ax_sim_focal_reads.get_yticklabels()]
 
 
 
-ax_sim_focal_reads.set_yscale('log', basey=10)
-ax_sim_nonfocal_reads.set_yscale('log', basey=10)
+ax_sim_focal_reads.set_yscale('log', base=10)
+ax_sim_nonfocal_reads.set_yscale('log', base=10)
 
 
 for ax_i in [ax_data, ax_sim_focal_abund, ax_sim_nonfocal_abund, ax_sim_focal_abund, ax_sim_nonfocal_abund, ax_sim_focal_reads, ax_sim_nonfocal_reads]:
@@ -303,21 +306,18 @@ ax_sim_nonfocal_param.scatter(true_amp, log_rel_nonfocal_amp, s=40, alpha=1, col
 #ax_sim_focal_param.set_title('Oscillating OTU + sampling', fontsize=12, fontweight='bold')
 #ax_sim_nonfocal_param.set_title('Non-oscillating OTU + sampling', fontsize=12, fontweight='bold')
 
-ax_sim_focal_param.set_xlabel("True amplitude of oscillating OTU" , fontsize=12)
-ax_sim_focal_param.set_ylabel("Inferred amplitude of oscillating OTU", fontsize=11.5)
+ax_sim_focal_param.set_xlabel("True " + r'$A$' +" of oscillating ASV" , fontsize=12)
+ax_sim_focal_param.set_ylabel("Inferred " + r'$A$' + " of oscillating ASV", fontsize=11.5)
 
-ax_sim_nonfocal_param.set_xlabel("True amplitude of oscillating OTU", fontsize=12)
-ax_sim_nonfocal_param.set_ylabel("Inferred amplitude of non-oscillating OTU", fontsize=11.5)
+ax_sim_nonfocal_param.set_xlabel("True " + r'$A$' +  " of oscillating ASV", fontsize=12)
+ax_sim_nonfocal_param.set_ylabel("Inferred " + r'$A$' + " of non-oscillating ASV", fontsize=11.5)
 
 #ax_sim_focal_reads_clr.set_ylabel("CLR-transformed abundance", fontsize=11, color=clr_color, fontweight='bold')
 
-ax_sim_nonfocal_param.axhline(y=0, ls='--', lw=2, zorder=0, c='k', label='True amp. of non-oscillating OTU')
+ax_sim_nonfocal_param.axhline(y=0, ls='--', lw=2, zorder=0, c='k', label='True ' + r'$A$' + ' of non-oscillating ASV')
 
 ax_sim_focal_param.legend(loc="upper left", fontsize=8)
 ax_sim_nonfocal_param.legend(loc="upper left", fontsize=8)
-
-
-
 
 
 

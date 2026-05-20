@@ -119,6 +119,48 @@ def make_cpsd_dict(n_null=10000):
         #cpsd_dict[otu_label_c]['p_value_timescale'] = p_value_timescale
 
 
+        #frequency-specific threshold from null
+        # C_thresh is shape (h,) => one threshold per frequency bin
+        _, C_null, C_thresh = tsdata_to_cpsd.phase_randomized_coherence_null(afd_rna, afd_dna, fs=fs, window=window, noverlap=noverlap, nfft=nfft, n_surr=1000)
+        
+        freqs_nonzero = freqs.copy()
+        freqs_nonzero[0] = numpy.nan
+        
+         # radians, shape (h,)
+        phase_xy  = numpy.angle(S[0, 1, :])
+        phase_deg = numpy.degrees(phase_xy)
+
+        # mask to significant frequencies only, same mask as lag calculation
+        #sig_mask = (coh_xy > C_thresh) & (~numpy.isnan(freqs_nonzero))
+
+        cpsd_dict[otu_label_c]['C_thresh'] = C_thresh
+        cpsd_dict[otu_label_c]['coh_xy'] = coh_xy
+        cpsd_dict[otu_label_c]['freqs'] = freqs
+
+        # phase plot
+        phase_xy = numpy.degrees(numpy.angle(S[0, 1, :]))
+        cpsd_dict[otu_label_c]['phase_xy'] = phase_xy
+
+
+        # dominant frequencies from parametric fit
+        #afd_dna = numpy.asarray(param_dict['data']['clr_afd']['DNA'][otu_idx])
+        #afd_rna = numpy.asarray(param_dict['data']['clr_afd']['RNA'][otu_idx])
+
+        #tau_rna = 2*numpy.pi/param_dict['freq_mle']['RNA'][otu_idx]
+        #tau_dna = 2*numpy.pi/param_dict['freq_mle']['DNA'][otu_idx]
+        
+        #f_rna = 1.0 / tau_rna
+        #f_dna = 1.0 / tau_dna
+        #idx_rna = numpy.argmin(numpy.abs(freqs - f_rna))
+        #idx_dna = numpy.argmin(numpy.abs(freqs - f_dna))
+
+        #phase_at_rna = phase_deg[idx_rna]
+        #phase_at_dna = phase_deg[idx_dna]
+        ##coh_at_rna   = coh_xy[idx_rna]
+        #coh_at_dna   = coh_xy[idx_dna]
+
+
+
     sys.stderr.write("Saving parameter dictionary...\n")
     with open(cpsd_dict_path, 'wb') as outfile:
         pickle.dump(cpsd_dict, outfile, protocol=pickle.HIGHEST_PROTOCOL)
@@ -244,7 +286,6 @@ def test_significance_cpsd_all_otus():
 
 def plot_cpsd_lag_global():
 
-    
     cpsd_dict =  pickle.load(open(cpsd_dict_path, 'rb'))
     otu_label_all = list(cpsd_dict.keys())
 
@@ -275,6 +316,8 @@ def plot_cpsd_lag_global():
     ax.text(0.76, 0.85, 'rRNA ' + r'$\rightarrow$' + ' rDNA', fontsize=13, ha='center', va='center', transform=ax.transAxes)
     ax.text(0.25, 0.85, 'rDNA ' + r'$\rightarrow$' + ' rRNA', fontsize=13, ha='center', va='center', transform=ax.transAxes)
 
+    ax.text(0.76, 0.75, r'$P_{\text{global}} < 10^{-4} $', fontsize=12, ha='center', va='center', transform=ax.transAxes)
+
 
     lag_range = numpy.linspace(-1*max_abs_width, max_abs_width, num=10000)
     ax.fill_between(lag_range, max_height, where=lag_range > 0, facecolor= utils.dna_rna_color_dict['RNA'], alpha=0.5, zorder=1)
@@ -291,6 +334,111 @@ def plot_cpsd_lag_global():
 
 
 
+def plot_coherence_spectrum(alpha=0.05):
+
+    fig = plt.figure(figsize = (20, 20))
+    fig.subplots_adjust(bottom= 0.15)
+
+    idx_all = list(range(len(otu_labels)))
+    chunk_all = [idx_all[x:x+5] for x in range(0, len(idx_all), 5)]
+    cpsd_dict =  pickle.load(open(cpsd_dict_path, 'rb'))
+
+    asv_count = 0
+
+    for chunk_idx, chunk in enumerate(chunk_all):
+
+        for c_idx, c in enumerate(chunk):
+
+            ax = plt.subplot2grid((len(chunk_all), len(chunk_all[0])), (chunk_idx, c_idx))
+
+            otu_label_c = otu_labels[asv_count]
+
+            C_thresh = cpsd_dict[otu_label_c]['C_thresh']
+            coh_xy = cpsd_dict[otu_label_c]['coh_xy']
+            freqs = cpsd_dict[otu_label_c]['freqs']
+            tau_rna = 2*numpy.pi/param_dict['freq_mle']['RNA'][asv_count]
+            tau_dna = 2*numpy.pi/param_dict['freq_mle']['DNA'][asv_count]
+
+            ax.plot(freqs, coh_xy, label='coherence')
+            ax.plot(freqs, C_thresh, 'k--', label=f'null (p={alpha})')
+            ax.fill_between(freqs, 0, coh_xy, where=coh_xy > C_thresh, alpha=0.3, label='significant')
+
+            if tau_rna is not None:
+                ax.axvline(1/tau_rna, color='r', lw=0.8, label=f'1/τ_rna')
+            if tau_dna is not None:
+                ax.axvline(1/tau_dna, color='b', lw=0.8, label=f'1/τ_dna')
+
+            ax.set_xlabel('frequency')
+            ax.set_ylabel('coherence')
+
+
+            asv_count += 1
+
+
+    fig.subplots_adjust(hspace=0.4, wspace=0.40)
+    fig_name = "%scpsd_coherence_spectrum.png" % (config.analysis_directory)
+    fig.savefig(fig_name, format='png', bbox_inches = "tight", pad_inches = 0.4, dpi = 600)
+    plt.close()
+
+
+
+def plot_phase_spectrum():
+
+    fig = plt.figure(figsize = (20, 20))
+    fig.subplots_adjust(bottom= 0.15)
+
+    idx_all = list(range(len(otu_labels)))
+    chunk_all = [idx_all[x:x+5] for x in range(0, len(idx_all), 5)]
+    cpsd_dict =  pickle.load(open(cpsd_dict_path, 'rb'))
+
+    asv_count = 0
+
+    for chunk_idx, chunk in enumerate(chunk_all):
+
+        for c_idx, c in enumerate(chunk):
+
+
+            otu_label_c = otu_labels[asv_count]
+
+            C_thresh = cpsd_dict[otu_label_c]['C_thresh']
+            coh_xy = cpsd_dict[otu_label_c]['coh_xy']
+            phase_xy = cpsd_dict[otu_label_c]['phase_xy']
+            freqs = cpsd_dict[otu_label_c]['freqs']
+            
+            sig_mask = coh_xy > C_thresh
+            phase_masked = numpy.where(sig_mask, phase_xy, numpy.nan)
+
+            ax = plt.subplot2grid((len(chunk_all), len(chunk_all[0])), (chunk_idx, c_idx))
+
+            ax.plot(freqs, phase_masked)
+            ax.axhline(0,    color='k', lw=0.8, ls='--')
+            ax.axhline(180,  color='k', lw=0.5, ls=':')
+            ax.axhline(-180, color='k', lw=0.5, ls=':')
+            
+            tau_rna = 2*numpy.pi/param_dict['freq_mle']['RNA'][asv_count]
+            tau_dna = 2*numpy.pi/param_dict['freq_mle']['DNA'][asv_count]
+
+
+            if tau_rna is not None:
+                idx = numpy.argmin(numpy.abs(freqs - 1/tau_rna))
+                ax.axvline(1/tau_rna, color='r', lw=0.8, label=f'1/τ_rna  φ={phase_masked[idx]:.1f}°')
+            if tau_dna is not None:
+                idx = numpy.argmin(numpy.abs(freqs - 1/tau_dna))
+                ax.axvline(1/tau_dna, color='b', lw=0.8, label=f'1/τ_dna  φ={phase_masked[idx]:.1f}°')
+
+            ax.set_xlabel('frequency')
+            ax.set_ylabel('phase (degrees)')
+            ax.set_ylim(-180, 180)
+
+
+    fig.subplots_adjust(hspace=0.4, wspace=0.40)
+    fig_name = "%scpsd_coherence_spectrum.png" % (config.analysis_directory)
+    fig.savefig(fig_name, format='png', bbox_inches = "tight", pad_inches = 0.4, dpi = 600)
+    plt.close()
+
+
+
+
 if __name__ == "__main__":
 
     print("Running...")
@@ -299,7 +447,8 @@ if __name__ == "__main__":
     #plot_cpsd_lag()
 
     #test_significance_cpsd_all_otus()
-
     plot_cpsd_lag_global()
 
     #test_cpsd_lag()
+
+    #plot_phase_spectrum()

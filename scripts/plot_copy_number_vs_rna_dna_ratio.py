@@ -20,7 +20,7 @@ param_dict = pickle.load(open(sine_parameter_utils.param_otu_mle_dict_path, "rb"
 #otu_labels = param_dict[otu_labels'']
 
 use_carrying_capacity_fig_name_dict = {True:'_k', False:''}
-use_carrying_capacity_y_label_dict = {True:"Difference in rRNA and rDNA\nconstants, " + r'$\mathrm{ln} \, K_{\mathrm{rRNA}}^{(0)} - \mathrm{ln} \, K_{\mathrm{rDNA}}^{(0)}$', False:"Time-averaged rRNA:rpDNA, " + r'$\bar{\phi}_{i}$'}
+use_carrying_capacity_y_label_dict = {True:"Difference in rRNA and rDNA\nconstants, " + r'$\mathrm{ln} \, K_{\mathrm{rRNA}}^{(0)} - \mathrm{ln} \, K_{\mathrm{rDNA}}^{(0)}$', False:"Time-averaged rRNA:rDNA, " + r'$\bar{\phi}_{i}$'}
 genus_param = [taxonomy_dict[k][taxonomic_level] for k in param_dict['otu_labels']]
 
 #print(param_dict['otu_labels'])
@@ -68,6 +68,8 @@ def make_plot(use_carrying_capacity):
     ax.scatter(rrna_copy_number, mean_ratio_all, s=25, alpha=1, color='k', zorder=2, label='One ASV')
 
     slope, intercept, r_value, p_value, std_err = stats.linregress(rrna_copy_number, mean_ratio_all)
+
+    print(intercept)
 
 
     x_range_ =  numpy.linspace(min(rrna_copy_number), max(rrna_copy_number), 10000)

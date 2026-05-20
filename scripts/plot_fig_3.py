@@ -69,27 +69,28 @@ phase_rna = numpy.asarray(param_dict['phase_mle']['RNA'])
 
 delta_phase = phase_rna - phase_dna
 # max delta can be +/- pi
-delta_phase_new = []
-for d in delta_phase:
+#delta_phase_new = []
+#for d in delta_phase:
 
-    if d > numpy.pi:
-        delta_phase_new.append(d - 2*numpy.pi)
-    elif d < -numpy.pi:
-        delta_phase_new.append(d + 2*numpy.pi)
-    else:
-        delta_phase_new.append(d)
+#    if d > numpy.pi:
+#        delta_phase_new.append(d - 2*numpy.pi)
+#    elif d < -numpy.pi:
+#        delta_phase_new.append(d + 2*numpy.pi)
+#    else:
+#        delta_phase_new.append(d)
 
 
-delta_phase_new = numpy.asarray(delta_phase_new)
+delta_phase_new = (delta_phase + numpy.pi) % (2*numpy.pi) - numpy.pi
+#delta_phase_wrapped = numpy.asarray(delta_phase_new)
 
 
 ###
 # plot oscillation timescale
 ###
 
-ax_timescale.hist(timescale_dna, 8, histtype='step', density=True, stacked=True, fill=False, color=utils.dna_rna_color_dict['DNA'], label='DNA')
-ax_timescale.hist(timescale_rna, 8, histtype='step', density=True, stacked=True, fill=False, color=utils.dna_rna_color_dict['RNA'], label='RNA')
-ax_timescale.set_xlabel('Oscillation timescale (days), ' + r'$\tau_{i}^{\mathrm{env}}$', fontsize=12, zorder=3)
+ax_timescale.hist(timescale_dna, 8, histtype='step', density=True, stacked=True, fill=False, color=utils.dna_rna_color_dict['DNA'], label='rDNA')
+ax_timescale.hist(timescale_rna, 8, histtype='step', density=True, stacked=True, fill=False, color=utils.dna_rna_color_dict['RNA'], label='rRNA')
+ax_timescale.set_xlabel('Oscillation timescale (days), ' + r'$\tau^{\mathrm{env}}$', fontsize=12, zorder=3)
 
 ax_timescale.axvline(x=365, ls='--', color='k', lw=2, label='Yearly', zorder=3)
 #ax_timescale.axvline(x=365/2, ymin=0, ymax=0.0037, ls=':', color='k', lw=2, label='Semi-yearly', zorder=3)
@@ -110,7 +111,7 @@ ax_timescale_rho.xaxis.set_tick_params(labelsize=6)
 
 
 
-ax_timescale_rho.scatter(timescale_dna, timescale_rna, s=6, color='k', alpha=0.7, zorder=2)
+ax_timescale_rho.scatter(timescale_dna, timescale_rna, s=6, color='k', alpha=0.7, zorder=3)
 param_concat = numpy.concatenate([timescale_dna, timescale_rna])
 min_param = min(param_concat) * 0.8
 max_param = max(param_concat) * 1.2
@@ -118,8 +119,22 @@ ax_timescale_rho.set_xlim([min_param, max_param])
 ax_timescale_rho.set_ylim([min_param, max_param])
 ax_timescale_rho.plot([min_param, max_param], [min_param, max_param], lw=2, ls=':', c='k', zorder=1, label='1:1')
 
-ax_timescale_rho.set_xlabel(r'$\tau_{i}^{\mathrm{env}}$' + ', rDNA', fontsize=8)
-ax_timescale_rho.set_ylabel(r'$\tau_{i}^{\mathrm{env}}$' + ', rRNA', fontsize=8)
+
+slope_tau, intercept_tau, r_value_tau, p_value_tau, std_err_tau = stats.linregress(timescale_dna, timescale_rna)
+# test H0: slope = 1
+t_stat_tau = (slope_tau - 1) / std_err_tau
+p_slope_ne_1_tau = 2 * stats.t.sf(abs(t_stat_tau), len(timescale_dna)-2)
+print("slope =", slope_tau)
+print("t =", t_stat_tau)
+print("p =", p_slope_ne_1_tau)
+
+x_range = numpy.linspace(min_param, max_param, num=1000)
+y_pred = intercept_tau + (slope_tau*x_range)
+#ax_timescale_rho.plot(x_range, y_pred, c='k', ls='--', lw=2, zorder=2, label='Slope = ' + str(round(slope_tau, 3)))
+
+
+ax_timescale_rho.set_xlabel(r'$\tau^{\mathrm{env}}$' + ', rDNA', fontsize=8)
+ax_timescale_rho.set_ylabel(r'$\tau^{\mathrm{env}}$' + ', rRNA', fontsize=8)
 
 ax_timescale_rho.legend(loc='upper left', fontsize=5)
 
@@ -135,7 +150,7 @@ ax_timescale_rho.set_title(r'$\rho^{2} = $' + str(round(timescale_rho**2, 3)), f
 
 ax_amp.hist(amp_dna, 8, histtype='step', density=True, stacked=True, fill=False, color=utils.dna_rna_color_dict['DNA'], label='DNA')
 ax_amp.hist(amp_rna, 8, histtype='step', density=True, stacked=True, fill=False, color=utils.dna_rna_color_dict['RNA'], label='RNA')
-ax_amp.set_xlabel('Amplitude, ' + r'$A_{i}$', fontsize=12, zorder=3)
+ax_amp.set_xlabel('Amplitude, ' + r'$A$', fontsize=12, zorder=3)
 
 
 ax_amp.xaxis.set_tick_params(labelsize=7)
@@ -155,8 +170,8 @@ ax_amp_rho.set_xlim([min_param, max_param])
 ax_amp_rho.set_ylim([min_param, max_param])
 ax_amp_rho.plot([min_param, max_param], [min_param, max_param], lw=2, ls=':', c='k', zorder=1, label='1:1')
 
-ax_amp_rho.set_xlabel(r'$A_{i}$' + ', rDNA', fontsize=8)
-ax_amp_rho.set_ylabel(r'$A_{i}$' + ', rRNA', fontsize=8)
+ax_amp_rho.set_xlabel(r'$A$' + ', rDNA', fontsize=8)
+ax_amp_rho.set_ylabel(r'$A$' + ', rRNA', fontsize=8)
 
 #ax_amp_rho.legend(loc='upper left', fontsize=5)
 
@@ -170,9 +185,9 @@ ax_amp_rho.set_title(r'$\rho^{2} = $' + str(round(amp_rho**2, 3)), fontsize=8)
 # plot phase
 ###
 ax_phase.hist(delta_phase_new, 8, histtype='step', density=True, stacked=True, lw=2, fill=False, color='k')
-ax_phase.set_xlabel('Phase difference, ' + r'$\Delta \psi_{i} = \psi_{i}^{\mathrm{rRNA}} -\psi_{i}^{\mathrm{rDNA}}$', fontsize=11, zorder=3)
+ax_phase.set_xlabel('Phase difference, ' + r'$\Delta \psi = \psi^{\mathrm{rRNA}} -\psi^{\mathrm{rDNA}}$', fontsize=11, zorder=3)
 #ax_phase.axvline(x=0, ls=':', color='k', lw=3, label=r'$\Delta \psi_{i}=0$', zorder=2)
-ax_phase.axvline(x=numpy.mean(delta_phase_new), ls=':', color='k', lw=3, label='Mean ' + r'$\Delta \psi_{i}$' + ' = ' + str(round(numpy.mean(delta_phase_new), 3)), zorder=2)
+ax_phase.axvline(x=numpy.mean(delta_phase_new), ls=':', color='k', lw=3, label='Mean ' + r'$\Delta \psi$' + ' = ' + str(round(numpy.mean(delta_phase_new), 3)), zorder=2)
 
 
 phase_ticks = [-numpy.pi, -0.5*numpy.pi, 0, 0.5*numpy.pi, numpy.pi]

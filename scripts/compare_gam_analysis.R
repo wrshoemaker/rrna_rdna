@@ -18,6 +18,7 @@ library(dplyr)
 library(tidyr)
 library(ggplot2)
 
+
 if (!requireNamespace("gratia", quietly = TRUE)) {
   stop("gratia is not installed. Run: install.packages('gratia')")
 }
@@ -26,6 +27,7 @@ cat("gratia version:", as.character(packageVersion("gratia")), "\n")
 #DATA_PATH <- read.csv('data/data_for_gam.csv', sep=',')
 DATA_PATH     <- "data/data_for_gam.csv"
 OUTPUT_DIR    <- "data/gam_results"
+#tree <- read.tree("asvs.nwk")
 dir.create(OUTPUT_DIR, showWarnings = FALSE)
 
 
@@ -40,8 +42,8 @@ temp_predictors <- c("day_of_year", "days")
 all_predictors  <- c(env_predictors, temp_predictors)
 
 dtype_labels <- c(
-  dna     = "DNA",
-  rna     = "RNA",
+  dna = "DNA",
+  rna = "RNA",
   rna_dna = "RNA:DNA"
 )
 
@@ -49,11 +51,11 @@ raw <- read.csv(DATA_PATH, check.names = FALSE)
 # Transpose: samples become rows, variables become columns
 row_names <- raw$sample_number
 # numeric matrix: 75 vars × 123 samples
-mat       <- as.matrix(raw[, -1])
+mat <- as.matrix(raw[, -1])
 # 123 samples × 75 vars
-df        <- as.data.frame(t(mat))
+df <- as.data.frame(t(mat))
 colnames(df) <- row_names
-df        <- df %>% mutate(across(everything(), as.numeric))
+df <- df %>% mutate(across(everything(), as.numeric))
 
 #stopifnot(all(env_predictors %in% colnames(df)))
 #stopifnot(all(temp_predictors %in% colnames(df)))
@@ -64,16 +66,12 @@ asv_cols  <- all_cols[grepl("^ASV_", all_cols)]
 # get ASV name
 get_base <- function(x) {
   x <- sub("_rna_dna$", "", x)
-  x <- sub("_rna$",     "", x)
-  x <- sub("_dna$",     "", x)
+  x <- sub("_rna$", "", x)
+  x <- sub("_dna$", "", x)
   x
 }
 
-get_dtype <- function(x) {
-  ifelse(grepl("_rna_dna$", x), "rna_dna",
-         ifelse(grepl("_rna$",     x), "rna",
-                "dna"))
-}
+get_dtype <- function(x) {ifelse(grepl("_rna_dna$", x), "rna_dna", ifelse(grepl("_rna$", x), "rna", "dna"))}
 
 asv_df <- data.frame(
   full_name = asv_cols,
@@ -107,9 +105,9 @@ if (any(incomplete)) {
 # Helper functions
 make_long <- function(df, triplet) {
   bind_rows(
-    df %>% mutate(y = .data[[ triplet[["dna"]]     ]], dtype = "dna"),
-    df %>% mutate(y = .data[[ triplet[["rna"]]     ]], dtype = "rna"),
-    df %>% mutate(y = .data[[ triplet[["rna_dna"]] ]], dtype = "rna_dna")
+    df %>% mutate(y = .data[[triplet[["dna"]]]], dtype = "dna"),
+    df %>% mutate(y = .data[[triplet[["rna"]]]], dtype = "rna"),
+    df %>% mutate(y = .data[[triplet[["rna_dna"]]]], dtype = "rna_dna")
   ) %>%
     mutate(dtype = factor(dtype, levels = c("dna", "rna", "rna_dna")))
 }
@@ -118,17 +116,17 @@ make_long <- function(df, triplet) {
 fit_joint_gam <- function(df_long) {
   gam(
     y ~ dtype
-    + s(water_temp,            k = 5,  by = dtype)
+    + s(water_temp, k = 5,  by = dtype)
     + s(specific_conductivity, k = 5,  by = dtype)
-    + s(salinity,              k = 5,  by = dtype)
-    + s(total_nitrogen,        k = 5,  by = dtype)
-    + s(total_phosphorus,      k = 5,  by = dtype)
-    + s(doc,                   k = 5,  by = dtype)
-    + s(secchi_depth,          k = 5,  by = dtype)
-    + s(ph,                    k = 5,  by = dtype)
-    + s(dissolved_oxygen,      k = 5,  by = dtype)
+    + s(salinity, k = 5,  by = dtype)
+    + s(total_nitrogen, k = 5,  by = dtype)
+    + s(total_phosphorus, k = 5,  by = dtype)
+    + s(doc, k = 5,  by = dtype)
+    + s(secchi_depth, k = 5,  by = dtype)
+    + s(ph, k = 5,  by = dtype)
+    + s(dissolved_oxygen, k = 5,  by = dtype)
     + s(day_of_year, k = 12, bs = "cc", by = dtype)
-    + s(days,        k = 10, bs = "tp", by = dtype),
+    + s(days, k = 10, bs = "tp", by = dtype),
     data   = df_long,
     method = "REML"
   )
@@ -137,17 +135,17 @@ fit_joint_gam <- function(df_long) {
 fit_constrained_gam <- function(df_long) {
   gam(
     y ~ dtype
-    + s(water_temp,            k = 5)
+    + s(water_temp, k = 5)
     + s(specific_conductivity, k = 5)
-    + s(salinity,              k = 5)
-    + s(total_nitrogen,        k = 5)
-    + s(total_phosphorus,      k = 5)
-    + s(doc,                   k = 5)
-    + s(secchi_depth,          k = 5)
-    + s(ph,                    k = 5)
-    + s(dissolved_oxygen,      k = 5)
+    + s(salinity, k = 5)
+    + s(total_nitrogen, k = 5)
+    + s(total_phosphorus, k = 5)
+    + s(doc, k = 5)
+    + s(secchi_depth, k = 5)
+    + s(ph, k = 5)
+    + s(dissolved_oxygen, k = 5)
     + s(day_of_year, k = 12, bs = "cc")
-    + s(days,        k = 10, bs = "tp"),
+    + s(days, k = 10, bs = "tp"),
     data   = df_long,
     method = "REML"
   )
@@ -157,13 +155,13 @@ fit_constrained_gam <- function(df_long) {
 extract_omnibus <- function(m_joint, m_constrained, asv_id) {
   lrt <- anova(m_constrained, m_joint, test = "Chisq")
   data.frame(
-    asv_id    = asv_id,
+    asv_id = asv_id,
     full_name = base_names[asv_ids == asv_id],
     delta_dev = lrt[2, "Deviance"],
-    df        = lrt[2, "Df"],
-    p_raw     = lrt[2, "Pr(>Chi)"],
+    df = lrt[2, "Df"],
+    p_raw = lrt[2, "Pr(>Chi)"],
     delta_AIC = AIC(m_constrained) - AIC(m_joint),
-    dev_expl  = summary(m_joint)$dev.expl
+    dev_expl = summary(m_joint)$dev.expl
   )
 }
 
@@ -185,9 +183,9 @@ extract_sensitivity <- function(m_joint, asv_id) {
       d <- tryCatch(
         gratia::derivatives(
           m_joint,
-          term          = candidate,
-          type          = "central",
-          interval      = "simultaneous",
+          term = candidate,
+          type = "central",
+          interval = "simultaneous",
           unconditional = TRUE
         ),
         error   = function(e) {
@@ -205,12 +203,12 @@ extract_sensitivity <- function(m_joint, asv_id) {
       if (is.null(d) || nrow(d) == 0) next
       
       results[[length(results) + 1]] <- data.frame(
-        asv_id          = asv_id,
-        dtype           = dt,
-        predictor       = pred,
-        mean_abs_deriv  = mean(abs(d$.derivative)),
-        sd_abs_deriv    = sd(abs(d$.derivative)),
-        n_points        = nrow(d),
+        asv_id = asv_id,
+        dtype = dt,
+        predictor = pred,
+        mean_abs_deriv = mean(abs(d$.derivative)),
+        sd_abs_deriv = sd(abs(d$.derivative)),
+        n_points = nrow(d),
         prop_sig_region = mean((d$.lower_ci > 0) | (d$.upper_ci < 0))
       )
     }
@@ -224,9 +222,9 @@ extract_sensitivity <- function(m_joint, asv_id) {
 # Pairwise difference smooth curves — save FULL pointwise data for plotting
 extract_diff_smooth_curves <- function(m_joint, asv_id) {
   pairs <- list(
-    c("dna",     "rna"),
-    c("dna",     "rna_dna"),
-    c("rna",     "rna_dna")
+    c("dna", "rna"),
+    c("dna", "rna_dna"),
+    c("rna", "rna_dna")
   )
   results <- list()
   
@@ -257,7 +255,12 @@ extract_diff_smooth_curves <- function(m_joint, asv_id) {
       
       if (is.null(d) || nrow(d) == 0) next
       
-      # Detect estimate/CI columns across gratia versions
+      # difference_smooths() returns ALL pairwise combinations regardless of
+      # the levels argument — filter to the specific pair before extracting
+      d <- d[d$.level_1 == pair[1] & d$.level_2 == pair[2], ]
+      
+      if (nrow(d) == 0) next
+      
       col_diff  <- find_col(d, c(".diff",     "difference",  ".difference"))
       col_lower <- find_col(d, c(".lower_ci", "lower"))
       col_upper <- find_col(d, c(".upper_ci", "upper"))
@@ -270,7 +273,6 @@ extract_diff_smooth_curves <- function(m_joint, asv_id) {
         next
       }
       
-      # x-column: predictor name appears as column name in output
       known_non_x <- c(col_diff, col_lower, col_upper,
                        ".smooth", ".by", ".level_1", ".level_2", ".se")
       x_col <- intersect(all_predictors, colnames(d))
@@ -310,16 +312,15 @@ extract_diff_smooth_curves <- function(m_joint, asv_id) {
 
 
 
-
 # Pairwise summary stats (for consistency heatmap => one row per predictor × pair)
 summarise_diff_smooth <- function(curve_data) {
   curve_data %>%
     group_by(asv_id, predictor, dtype_a, dtype_b, pair_label) %>%
     summarise(
-      prop_sig      = mean((lower > 0) | (upper < 0)),
+      prop_sig = mean((lower > 0) | (upper < 0)),
       net_direction = mean(difference),
       max_abs_diff  = max(abs(difference)),
-      .groups       = "drop"
+      .groups = "drop"
     )
 }
 
@@ -331,12 +332,16 @@ cat("ASV columns found in df:", length(asv_check), "\n")
 cat("First ASV column name:\n ", asv_check[1], "\n")
 
 
+
+# named character — WRONG for .data[[]]
 cat("\nTriplet indexing test:\n")
 cat("  Single bracket triplets[[1]]['dna']  class:", 
-    class(triplets[[1]]["dna"]),   # named character — WRONG for .data[[]]
+    class(triplets[[1]]["dna"]),
     "\n")
+
+# plain character — CORRECT
 cat("  Double bracket triplets[[1]][['dna']] class:", 
-    class(triplets[[1]][["dna"]]), # plain character — CORRECT
+    class(triplets[[1]][["dna"]]),
     "\n")
 
 cat("\nTesting make_long on ASV_001...\n")
@@ -365,8 +370,8 @@ if (!is.null(test_gam)) cat("  OK — deviance explained:",
 
 test_diff <- gratia::difference_smooths(
   test_gam,
-  smooth   = "s(water_temp)",
-  levels   = c("dna", "rna"),
+  smooth = "s(water_temp)",
+  levels = c("dna", "rna"),
   ci_level = 0.95
 )
 
@@ -382,9 +387,7 @@ print(head(test_diff, 3))
 if (!is.null(test_gam)) {
   cat("\nTesting derivatives() on ASV_001 / water_temp / dna...\n")
   test_deriv <- tryCatch(
-    gratia::derivatives(test_gam, term = "s(water_temp):dtypedna",
-                        type = "central", interval = "simultaneous",
-                        unconditional = TRUE),
+    gratia::derivatives(test_gam, term = "s(water_temp):dtypedna", type = "central", interval = "simultaneous", unconditional = TRUE),
     error   = function(e) { cat("derivatives() error:",   conditionMessage(e), "\n"); NULL },
     warning = function(w) { cat("derivatives() warning:", conditionMessage(w), "\n"); NULL }
   )
@@ -394,10 +397,10 @@ if (!is.null(test_gam)) {
 
 
 # Main loop
-all_omnibus   <- list()
+all_omnibus <- list()
 all_sensitiv <- list()
-all_curves   <- list()
-failed       <- c()
+all_curves <- list()
+failed <- c()
 
 for (i in seq_along(triplets)) {
   asv_id  <- names(triplets)[i]
@@ -405,20 +408,19 @@ for (i in seq_along(triplets)) {
   cat(sprintf("[%02d/%02d] %s\n", i, n_triplets, asv_id))
   
   result <- tryCatch({
-    df_long       <- make_long(df, triplet)
-    m_joint       <- fit_joint_gam(df_long)
+    df_long <- make_long(df, triplet)
+    m_joint <- fit_joint_gam(df_long)
     m_constrained <- fit_constrained_gam(df_long)
     
     list(
-      omnibus  = extract_omnibus(m_joint, m_constrained, asv_id),
+      omnibus = extract_omnibus(m_joint, m_constrained, asv_id),
       sensitiv = extract_sensitivity(m_joint, asv_id),
-      curves   = extract_diff_smooth_curves(m_joint, asv_id)
+      curves = extract_diff_smooth_curves(m_joint, asv_id)
     )
   },
   error = function(e) {
-    message(sprintf("  ERROR [%s]: %s\n  Call: %s",
-                    asv_id, conditionMessage(e),
-                    deparse(conditionCall(e))))
+    message(sprintf("  ERROR [%s]: %s\n  Call: %s", asv_id, conditionMessage(e),
+    deparse(conditionCall(e))))
     NULL
   },
   warning = function(w) {
@@ -427,16 +429,15 @@ for (i in seq_along(triplets)) {
   })
   
   if (!is.null(result)) {
-    all_omnibus[[i]]  <- result$omnibus
+    all_omnibus[[i]] <- result$omnibus
     all_sensitiv[[i]] <- result$sensitiv
-    all_curves[[i]]   <- result$curves
+    all_curves[[i]] <- result$curves
   } else {
     failed <- c(failed, asv_id)
   }
 }
 
-cat(sprintf("\nCompleted: %d/%d  |  Failed: %d\n",
-            n_triplets - length(failed), n_triplets, length(failed)))
+cat(sprintf("\nCompleted: %d/%d  |  Failed: %d\n", n_triplets - length(failed), n_triplets, length(failed)))
 if (length(failed) > 0)
   cat("Failed ASVs:", paste(failed, collapse = ", "), "\n")
 
@@ -447,4 +448,67 @@ diff_summary <- summarise_diff_smooth(curves_all)
 
 
 # 5  BH-FDR CORRECTION
+
+omnibus_all <- omnibus_all %>% mutate(p_adj_BH = p.adjust(p_raw, method = "BH"), sig_BH   = p_adj_BH < 0.05)
+cat(sprintf("\n%d / %d ASV triplets significant (BH q < 0.05)\n", sum(omnibus_all$sig_BH, na.rm = TRUE), nrow(omnibus_all)))
+
+
+# test <- difference_smooths(m, smooth = "s(water_temp)", 
+#                           levels = c("dna", "rna_dna"))
+# if water_temp is warmer = rna_dna more sensitive,
+# the difference (dna - rna_dna)  NEGATIVE at high temps
+
+
+#######
+# test sign
+#df_long_test <- make_long(df, triplets[["ASV_001"]])
+#m_test <- fit_joint_gam(df_long_test)
+# Get difference smooth: dna - rna_dna
+# High water temp, rRNA:rDNA should be MORE sensitive than rDNA
+# so (dna - rna_dna) should be NEGATIVE at high temps
+#test_diff <- difference_smooths(m_test, smooth = "s(water_temp)", levels = c("dna", "rna_dna"))
+# Check sign at low vs high water temp
+# low temp - expect positive or near zero
+#head(test_diff[order(test_diff$water_temp), ], 3)
+# high temp - expect negative
+#tail(test_diff[order(test_diff$water_temp), ], 3)
+# CORRECT!
+#######
+
+
+# 6 Aggregate sensitivity across triplets
+sensitivity_summary <- sensitiv_all %>%
+  group_by(predictor, dtype) %>%
+  summarise(
+    n_triplets = n(),
+    grand_mean = mean(mean_abs_deriv, na.rm = TRUE),
+    grand_se = sd(mean_abs_deriv, na.rm = TRUE) / sqrt(n()),
+    grand_sd = sd(mean_abs_deriv, na.rm = TRUE),
+    ci_lower = grand_mean - 1.96 * grand_se,
+    ci_upper = grand_mean + 1.96 * grand_se,
+    I2 = pmax(0, pmin(100, 100 * (grand_sd^2 - mean(sd_abs_deriv^2 / n_points, na.rm = TRUE)) / grand_sd^2)),
+    mean_prop_sig = mean(prop_sig_region, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  mutate(dtype_label = dtype_labels[dtype])
+
+diff_consistency <- diff_summary %>%
+  group_by(predictor, pair_label) %>%
+  summarise(
+    n_triplets    = n(),
+    pct_any_sig   = 100 * mean(prop_sig > 0),
+    mean_prop_sig = mean(prop_sig),
+    mean_net_dir  = mean(net_direction),
+    .groups       = "drop"
+  )
+
+
+
+write.csv(omnibus_all, file.path(OUTPUT_DIR, "01_omnibus_tests.csv"), row.names = FALSE)
+write.csv(sensitiv_all, file.path(OUTPUT_DIR, "02_sensitivity_per_triplet.csv"), row.names = FALSE)
+write.csv(sensitivity_summary, file.path(OUTPUT_DIR, "03_sensitivity_summary.csv"), row.names = FALSE)
+write.csv(curves_all, file.path(OUTPUT_DIR, "04_diff_smooth_curves.csv"), row.names = FALSE)
+write.csv(diff_summary, file.path(OUTPUT_DIR, "05_diff_smooth_summary.csv"), row.names = FALSE)
+write.csv(diff_consistency,file.path(OUTPUT_DIR, "06_diff_consistency.csv"), row.names = FALSE)
+cat("\n--- Flat files saved to", OUTPUT_DIR, "---\n")
 

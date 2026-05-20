@@ -1775,11 +1775,10 @@ def plot_clr_abundance_with_vs_without_otu1(data_type='RNA'):
 
 def plot_time_vs_clr_ratio(method='mle'):
 
-    s_by_s, otu_labels, samples = utils.load_count_data()
-    clr_s_by_s_dna, clr_s_by_s_rna, otu_labels_subset = utils.clr_transform_subset(s_by_s, otu_labels, samples)
+    #s_by_s, otu_labels, samples = utils.load_count_data()
+    #clr_s_by_s_dna, clr_s_by_s_rna, otu_labels_subset = utils.clr_transform_subset(s_by_s, otu_labels, samples)
 
     # get days
-
     #param_dict =  load_param_otu_dict(log10_status=False, clr_status=True)
     param_dict =  pickle.load(open(param_otu_mle_dict_path, 'rb'))
 

@@ -29,7 +29,6 @@ dna_rna_color_dict = {'RNA': '#FF6347', 'DNA': '#87CEEB', 'ratio':'k', 'RNA_DNA'
 color_radius = 2
 
 cmap_data_type_dict = {'DNA': 'Blues', 'RNA': 'Reds'}
-
 transformation_color_dict = {'rel': '#FFA500', 'clr': '#1f7e3b'}
 # 13d14c
 

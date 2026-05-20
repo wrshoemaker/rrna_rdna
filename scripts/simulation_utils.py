@@ -1609,7 +1609,7 @@ if __name__ == "__main__":
     plot_compare_clr_to_true_abundance()
 
     # Fig. S6
-    oscillation_sim_results()
+    #oscillation_sim_results()
 
     # Fig. S7
     plot_oscillation_artifact_phase_simulation()

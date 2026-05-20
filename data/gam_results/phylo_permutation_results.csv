@@ -1,0 +1,2 @@
+"predictor","obs_median","n_positive","n_total","pct_positive","p_perm","sig","conclusion"
+"water_temp",0.019609,16,21,76.2,1,FALSE,"Wilcoxon not confirmed — interpret with caution"
