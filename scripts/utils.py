@@ -32,7 +32,7 @@ cmap_data_type_dict = {'DNA': 'Blues', 'RNA': 'Reds'}
 transformation_color_dict = {'rel': '#FFA500', 'clr': '#1f7e3b'}
 # 13d14c
 
-
+# ASV_001, ASV_006
 phototroph_asv_all = ['TACGGAGGATGCAAGCGTTATCCGGAATGATTGGGCGTAAAGGGTCCGCAGGTGGCATTGTAAGTCTGCTGTTAAAGAGTTTGGCTCAACCAAATAAGAGCAGTGGAAACTACAAAGCTAGAGTGTGGTCGGGGCAGAGGGAATTCCTGGTGTAGCGGTGAAATGCGTAGATATCAGGAAGAACACCAGTGGCGAAGGCGCTCTGCTAGGCCGAGACTGACACTGAGGGACGAAAGCTAGGGGAGCGAATGGG', 'TACGGGGGATGCAAGCGTTATCCGGAATGATTGGGCGTAAAGAGTCCGTAGGTAGTCATCCAAGTCTGCTGTTAAAGAGCGAGGCTTAACCTCGTAAAGGCAGTGGAAACTGGAAGACTAGAGTGTAGTAGGGGCAGAGGGAATTCCTGGTGTAGCGGTGAAATGCGTAGAGATCAGGAAGAACACCGGTGGCGAAGGCGCTCTGCTGGGCTATAACTGACACTGAGGGACGAAAGCTAGGGGAGCGAATGGG']
 
 rescaled_label_dict = {'RNA':'Rescaled rRNA, ' + r'$r_{i}(t)$', 'DNA': 'Rescaled rDNA, ' + r'$d_{i}(i)$', 'ratio': 'Rescaled rRNA:rDNA, ' + r'$\phi_{i}(t)$'}
@@ -64,10 +64,30 @@ env_variable_no_unit_label_dict = {'water_temp': 'Water temperature', 'specific_
                             'secchi_depth': 'Secchi depth', 'ph':'pH', 'air_temperature': 'Air temperature',  'total_nitrogen':'Total nitrogen', 'total_phosphorus':'Total phosphorus', 'doc': 'Dissolved organic carbon'}
 
 
+env_variable_no_unit_label_abbrev_dict = {'water_temp': 'Water temp.', 'specific_conductivity': 'Specific cond.', 
+                            'dissolved_oxygen': 'Dissolved ' + r'O$_2$', 'salinity': 'Salinity',
+                            'secchi_depth': 'Secchi depth', 'ph':'pH', 'air_temperature': 'Air temp.',  'total_nitrogen':'Total N', 'total_phosphorus':'Total P', 'doc': 'DOC'}
+
+
+
 
 env_variable_no_unit_label_split_dict = {'water_temp': 'Water\ntemp.', 'specific_conductivity': 'Specific\nconductivity', 
                             'dissolved_oxygen': 'Dissolved\noxygen', 'salinity': 'Salinity',
                             'secchi_depth': 'Secchi\ndepth', 'ph':'pH', 'air_temperature': 'Air\ntemperature',  'total_nitrogen':'Total N', 'total_phosphorus':'Total C', 'doc': 'Dissolved\norganic C'}
+
+
+family_trophic_status = {
+    "Nostocaceae": "phototroph",        # Cyanobacteria; oxygenic photosynthesis
+    "Sporichthyaceae": "heterotroph",   # Actinobacteria; aerobic organotrophs
+    "Comamonadaceae": "heterotroph",    # Betaproteobacteria; aerobic organotrophs
+    "Phormidiaceae": "phototroph",      # Cyanobacteria; oxygenic photosynthesis
+    "Chitinophagaceae": "heterotroph",  # Bacteroidota; aerobic organotrophs
+    "Saprospiraceae": "heterotroph",    # Bacteroidota; aerobic organotrophs
+    "Methylophilaceae": "heterotroph",  # Betaproteobacteria; methylotrophs (C1 compounds)
+    "Spirosomataceae": "heterotroph",   # Bacteroidota; aerobic organotrophs
+    "Alcaligenaceae": "heterotroph",    # Betaproteobacteria; aerobic organotrophs
+    "Burkholderiaceae": "heterotroph",  # Betaproteobacteria; aerobic organotrophs
+}
 
 
 #otu_producer_status = {'Otu000001': 'phototroph': ''}
@@ -1740,6 +1760,23 @@ def compute_pvalue(observed, null_distribution, side="two"):
         raise ValueError("side must be 'right', 'left', or 'two'")
 
 
+
+def perm_slope(x, y, n_perm=10000):
+
+    slope, intercept, r_value, p_value, std_err = stats.linregress(x, y)
+    # permutation test
+    rng = numpy.random.default_rng(123)
+
+    perm_slopes = numpy.empty(n_perm)
+
+    for i in range(n_perm):
+        y_perm = rng.permutation(y)
+        perm_slopes[i] = stats.linregress(x, y_perm).slope
+
+    # two-sided p-value
+    p_perm = (numpy.sum(numpy.abs(perm_slopes) >= numpy.abs(slope)) + 1) / (n_perm + 1)
+
+    return slope, intercept, r_value, p_perm, std_err
 
 
 

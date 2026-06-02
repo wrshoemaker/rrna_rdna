@@ -28,11 +28,12 @@ taxonomy_dict = utils.build_taxonomy_dict()
 fig = plt.figure(figsize = (20, 20))
 fig.subplots_adjust(bottom= 0.15)
 
-s_by_s, otu_labels, samples = utils.load_count_data()
+s_by_s, _, samples = utils.load_count_data()
 
 idx_all = list(range(len(param_dict['data']['clr_afd']['RNA'])))
 chunk_all = [idx_all[x:x+5] for x in range(0, len(idx_all), 5)]
 
+otu_labels = param_dict['otu_labels']
 
 asv_count = 0
 for chunk_idx, chunk in enumerate(chunk_all):
@@ -57,7 +58,7 @@ for chunk_idx, chunk in enumerate(chunk_all):
             #    print(days_i)
             #    print(n_all)
 
-            print(delta_t_all[0], rho_all[0])
+            #print(delta_t_all[0], rho_all[0])
 
             ax.scatter(delta_t_all, rho_all, s=7, alpha=0.7, zorder=2, c=utils.dna_rna_color_dict[data_type], label='Observed')
             #ax.plot(delta_t_all, rho_all, ls='-', lw=3, zorder=2, c=utils.dna_rna_color_dict[data_type], label='Predicted')

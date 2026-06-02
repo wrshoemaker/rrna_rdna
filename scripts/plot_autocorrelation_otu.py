@@ -340,7 +340,8 @@ def plot_autocorrelation_ratio_otu(cov=False):
             ax.set_xlabel("Time difference (days), " + r'$\Delta t$', fontsize = 10)
             ax.set_ylabel("Autocorrelation, " + utils.sample_label_dict['ratio'], fontsize = 10)
             ax.set_title('ASV %d (%s)' % (asv_count + 1, taxonomy_dict[otu_labels[asv_count]]['family']), fontsize=12)
-
+            
+            print(taxonomy_dict[otu_labels[asv_count]]['family'])
 
 
             if (chunk_idx==0) and (c_idx==0):
@@ -368,7 +369,7 @@ if __name__ == "__main__":
 
     args = parser.parse_args()    
 
-    make_autocorrelation_dict()
+    #make_autocorrelation_dict()
 
     #plot_autocorrelation_otu(args.data_type)
 
