@@ -143,6 +143,10 @@ for data_type_idx, data_type in enumerate(['dna', 'rna']):
     ax_dist = plt.subplot2grid((2, 2), (0, data_type_idx))
     ax_decay = plt.subplot2grid((2, 2), (1, data_type_idx))
 
+    ax_dist.text(-0.15, 1.07, utils.sub_plot_labels[data_type_idx], fontsize=10, fontweight='bold', ha='center', va='center', transform=ax_dist.transAxes)
+    ax_decay.text(-0.15, 1.07, utils.sub_plot_labels[data_type_idx+2], fontsize=10, fontweight='bold', ha='center', va='center', transform=ax_decay.transAxes)
+
+
     # plot distributions
     #ax_dist.hist(pairs_all[idx_hetero_hetero], bins=12, density=True, histtype='step', alpha=1, lw=4, ls=':', color=color, zorder=1, label='hetero x hetero')
     #ax_dist.hist(pairs_all[idx_photo_hetero], bins=12, density=True, histtype='step', alpha=1, lw=4, ls='--', color=color, zorder=1, label='photo x hetero')

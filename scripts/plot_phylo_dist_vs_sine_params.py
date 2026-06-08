@@ -79,7 +79,7 @@ def plot_dist_vs_sine_parameters():
 
             ax.scatter(dist_all, param_delta_all, alpha=0.7, s=10, color=utils.dna_rna_color_dict[data_type], zorder=1)
 
-            ax.set_xlabel('Phylogenetic distance between ASVs, ' + r'$d_{i,j}$', fontsize=11)
+            ax.set_xlabel('Pairwise phylogenetic distance', fontsize=11)
             
             if param == 'amp':
                 label = 'Abs. diff. of amplitidues, ' + r'$ | A_{i} - A_{j} |$'

@@ -59,6 +59,16 @@ ax_corr_dist = plt.subplot2grid((3, 2), (2, 0), colspan=1)
 ax_corr_scatter = plt.subplot2grid((3, 2), (2, 1), colspan=1)
 
 
+ax_mad_dist.text(-0.1, 1.07, utils.sub_plot_labels[0], fontsize=10, fontweight='bold', ha='center', va='center', transform=ax_mad_dist.transAxes)
+ax_mad_scatter.text(-0.1, 1.07, utils.sub_plot_labels[1], fontsize=10, fontweight='bold', ha='center', va='center', transform=ax_mad_scatter.transAxes)
+
+ax_occupancy_dist.text(-0.1, 1.07, utils.sub_plot_labels[2], fontsize=10, fontweight='bold', ha='center', va='center', transform=ax_occupancy_dist.transAxes)
+ax_occupancy_scatter.text(-0.1, 1.07, utils.sub_plot_labels[3], fontsize=10, fontweight='bold', ha='center', va='center', transform=ax_occupancy_scatter.transAxes)
+
+ax_corr_dist.text(-0.1, 1.07, utils.sub_plot_labels[4], fontsize=10, fontweight='bold', ha='center', va='center', transform=ax_corr_dist.transAxes)
+ax_corr_scatter.text(-0.1, 1.07, utils.sub_plot_labels[5], fontsize=10, fontweight='bold', ha='center', va='center', transform=ax_corr_scatter.transAxes)
+
+
 
 # plot MAD dist
 mad_rna = numpy.mean(rel_s_by_s_rna, axis=1)

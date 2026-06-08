@@ -1780,6 +1780,28 @@ def perm_slope(x, y, n_perm=10000):
 
 
 
+
+def rayleigh_test(angles):
+    # Rayleigh test for circular uniformity
+    # H0: angles are uniformly distributed on the circle
+    # Returns: R (mean resultant length), p-value
+
+    n = len(angles)
+    # mean resultant vector
+    C = numpy.mean(numpy.cos(angles))
+    S = numpy.mean(numpy.sin(angles))
+    R = numpy.sqrt(C**2 + S**2)  # mean resultant length, 0 to 1
+    
+    # Rayleigh test statistic
+    z = n * R**2
+    
+    # p-value (approximation valid for n > 10)
+    p = numpy.exp(-z) * (1 + (2*z - z**2)/(4*n) - (24*z - 132*z**2 + 76*z**3 - 9*z**4)/(288*n**2))
+    
+    return R, p
+
+
+
 if __name__ == "__main__":
 
     print('Utility file')

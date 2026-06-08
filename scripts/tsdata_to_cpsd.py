@@ -364,7 +364,7 @@ def phase_randomized_coherence_null(x, y, fs=1.0, window=64, noverlap=None, nfft
 
 
 
-def lag_null_distribution(x, y, S_shape, freqs, nfft, window, noverlap, fs, n_surr=1000, min_coh_xy=0.3, seed=123456789, n=2):
+def lag_null_distribution(x, y, S_shape, freqs, nfft, window, noverlap, fs, n_surr=1000, min_coh_xy=0.3, seed=123456789, n=2, f_min=0.0):
 
     numpy.random.seed(seed)
     
@@ -395,7 +395,7 @@ def lag_null_distribution(x, y, S_shape, freqs, nfft, window, noverlap, fs, n_su
 
         # Weighted average over strong coherence
         coh_surr = numpy.abs(S_xy_surr)**2 / (S_surr[0,0,:] * S_surr[1,1,:])
-        mask = coh_surr > 0.3
+        mask = (coh_surr > min_coh_xy) & (freqs > f_min)
         avg_lag_surr = numpy.nanmean(time_lag_surr[mask])
         #avg_lag_surr = numpy.nanmean(time_lag_surr)
 

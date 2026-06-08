@@ -58,6 +58,7 @@ def make_plot(use_carrying_capacity):
             diff = numpy.mean(clr_rna - clr_dna)
 
         mean_ratio_all.append(diff)
+        #mean_ratio_all.append(numpy.mean(clr_dna))
 
 
     fig = plt.figure(figsize = (4.5, 4)) #
@@ -67,19 +68,27 @@ def make_plot(use_carrying_capacity):
     ax = fig.add_subplot(gs[0, 0])
     ax.scatter(rrna_copy_number, mean_ratio_all, s=25, alpha=1, color='k', zorder=2, label='One ASV')
 
-    slope, intercept, r_value, p_value, std_err = stats.linregress(rrna_copy_number, mean_ratio_all)
+    slope, intercept, r_value, p_value, std_err = stats.linregress(numpy.log(rrna_copy_number), mean_ratio_all)
 
-    print(intercept)
+    t_stat = (slope ) / std_err
+    p_slope_ne_0 = 2 * stats.t.sf(numpy.abs(t_stat), len(mean_ratio_all) - 2)
+    print(slope, t_stat, p_slope_ne_0)
+
+    # test whether the slope is different from one
+    t_stat = (slope - 1.0) / std_err
+    p_slope_ne_1 = 2 * stats.t.sf(numpy.abs(t_stat), len(mean_ratio_all) - 2)
+    #print('Different from 1', t_stat, p_slope_ne_1)
 
 
     x_range_ =  numpy.linspace(min(rrna_copy_number), max(rrna_copy_number), 10000)
-    y_fit_range = slope*x_range_ + intercept
+    y_fit_range = slope*numpy.log(x_range_) + intercept
+
     ax.plot(x_range_, y_fit_range, ls='--', lw=2.5, c='k')
 
-    x_range_ci, y_range_pred, lcb, ucb = utils.get_confidence_hull(rrna_copy_number, mean_ratio_all)
-    idx_to_plot = (x_range_ci >= min(x_range_)) & (x_range_ci <= max(x_range_))
-    ax.plot(x_range_ci[idx_to_plot], lcb[idx_to_plot], color='k', linestyle=':', linewidth=2, zorder=3, label=r'$95\%$' + ' confidence hull')
-    ax.plot(x_range_ci[idx_to_plot], ucb[idx_to_plot], color='k', linestyle=':', linewidth=2, zorder=3)
+    x_range_ci, y_range_pred, lcb, ucb = utils.get_confidence_hull(numpy.log(rrna_copy_number), mean_ratio_all)
+    idx_to_plot = (numpy.exp(x_range_ci) >= min(x_range_)) & (numpy.exp(x_range_ci) <= max(x_range_))
+    ax.plot(numpy.exp(x_range_ci[idx_to_plot]), lcb[idx_to_plot], color='k', linestyle=':', linewidth=2, zorder=3, label=r'$95\%$' + ' confidence hull')
+    ax.plot(numpy.exp(x_range_ci[idx_to_plot]), ucb[idx_to_plot], color='k', linestyle=':', linewidth=2, zorder=3)
 
 
 
@@ -112,5 +121,5 @@ if __name__ == "__main__":
 
     print("Running...")
 
-    make_plot(use_carrying_capacity=True)
+    #make_plot(use_carrying_capacity=True)
     make_plot(use_carrying_capacity=False)

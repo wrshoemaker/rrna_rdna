@@ -19,6 +19,11 @@ param_dict = pickle.load(open(sine_parameter_utils.param_otu_mle_dict_path, "rb"
 otu_labels = param_dict['otu_labels']
 mean_delta_days = 7.19672131147541
 
+n_samples = len(param_dict['data']['clr_afd']['DNA'][0])
+
+numpy.random.seed(123456789)
+
+
 # channels
 #n = len(param_dict['data']['clr_afd']['DNA'][0])
 n = 2
@@ -28,11 +33,39 @@ fres = 128
 h = fres + 1 
 fs=1.0
 nfft = 2*(h-1)
+#nfft = 2 * fres
 # window length
-window = int(len(param_dict['data']['clr_afd']['DNA'][0]) / 2)
-noverlap = 30
+#window = int(len(param_dict['data']['clr_afd']['DNA'][0]) / 2)
+# 31
+#window = 61
+window = min(n_samples, nfft)
+noverlap = round(window / 2)
+#noverlap = 30
+# 15
+#noverlap = 30
 min_coh_xy = 0.3
+#min_coh_xy = 0
 n_surr=1000
+
+days = numpy.asarray(param_dict['data']['days']['DNA'][0])
+delta_days = numpy.median(days[1:] - days[:-1])
+#fs_real = 1.0 / delta_days  # cycles per day
+# cycles per day, cutoff
+#f_min = fs_real / (n_samples / 1.0) 
+
+fs_real = 1.0
+f_min = fs_real / (n_samples / 1.0) 
+
+#f_min = 0
+
+#print(f"delta_days = {delta_days}")
+#print(f"fs_real = {fs_real}")
+#print(f"f_min = {f_min}")
+#print(f"tau_wrap_threshold = {1/(2*f_min)}") 
+
+#tau_wrap_threshold = 1.0 / (2 * f_min)
+#tau_wrap_threshold = 1.0 / (2 * f_min)
+#print(tau_wrap_threshold)
 
 
 taxonomy_dict = utils.build_taxonomy_dict()
@@ -51,13 +84,13 @@ def make_cpsd_dict(n_null=10000):
         afd_rna = numpy.asarray(param_dict['data']['clr_afd']['RNA'][otu_idx])
         rna_dna = numpy.column_stack((afd_rna, afd_dna))
 
-        S = tsdata_to_cpsd.cpsd_welch_matlab(rna_dna, n=n, h=h, nfft=nfft, window=window, noverlap=noverlap, fs=1.0)
+        S = tsdata_to_cpsd.cpsd_welch_matlab(rna_dna, n=n, h=h, nfft=nfft, window=window, noverlap=noverlap, fs=fs_real)
         S_xy = S[0,1,:]
 
         # Phase spectrum (radians)
         phase_xy = numpy.angle(S_xy)
         # Avoid division by zero at DC
-        freqs = numpy.linspace(0, fs/2, h)
+        freqs = numpy.linspace(0, fs_real/2, h)
         freqs_nonzero = freqs.copy()
         # ignore 0 Hz for lag calculation
         freqs_nonzero[0] = numpy.nan  
@@ -65,15 +98,17 @@ def make_cpsd_dict(n_null=10000):
         time_lag = phase_xy / (2 * numpy.pi * freqs_nonzero)
 
         # magnitude-squared coherence
-        coh_xy = numpy.abs(S_xy)**2 / (S[0,0,:] * S[1,1,:])
-        mask = coh_xy > min_coh_xy
-        #avg_lag = numpy.nanmean(time_lag[mask])
+        coh_xy = numpy.abs(S_xy)**2 / (numpy.real(S[0,0,:]) * numpy.real(S[1,1,:]))
+        # in units cycles/day
+        mask = (coh_xy > min_coh_xy) & (freqs > f_min)
 
         mask_scaled = (~numpy.isnan(time_lag))*mask        
         avg_lag_scaled_coh_xy = numpy.real( sum((time_lag[mask_scaled]) * (coh_xy[mask_scaled])) / sum(coh_xy[mask_scaled]))
 
-        time_lags_null, scaled_time_lags_null = tsdata_to_cpsd.lag_null_distribution(afd_rna, afd_dna, S.shape, freqs, nfft=nfft, window=window, noverlap=noverlap, fs=fs, n_surr=n_null, min_coh_xy=min_coh_xy, seed=123456789, n=n)
+        time_lags_null, scaled_time_lags_null = tsdata_to_cpsd.lag_null_distribution(afd_rna, afd_dna, S.shape, freqs, nfft=nfft, window=window, noverlap=noverlap, fs=fs_real, n_surr=n_null, min_coh_xy=min_coh_xy, seed=123456789, n=n, f_min=f_min)
         p_value_lag = utils.compute_pvalue(avg_lag_scaled_coh_xy, scaled_time_lags_null)
+
+        print(avg_lag_scaled_coh_xy, p_value_lag)
 
         # amplitude similarity
         # coherence weighted log-ratio of power spectra 
@@ -106,6 +141,21 @@ def make_cpsd_dict(n_null=10000):
         #print(p_value_power, p_value_timescale)
 
         cpsd_dict[otu_label_c] = {}
+        cpsd_dict[otu_label_c]['freqs_no_mask_scaled'] = freqs_nonzero[mask_scaled]
+        cpsd_dict[otu_label_c]['time_lag_no_mask_scaled'] = time_lag[mask_scaled]
+        cpsd_dict[otu_label_c]['phase_xy_no_mask_scaled'] = phase_xy[mask_scaled]
+
+
+        cpsd_dict[otu_label_c]['mean_phase'] = numpy.angle(numpy.sum(coh_xy[mask_scaled] * numpy.exp(1j * phase_xy[mask_scaled])))
+
+
+        #omegas = 2 * numpy.pi * freqs_nonzero[mask_scaled]
+        #slope, intercept = numpy.polyfit(omegas, numpy.real(phase_xy[mask_scaled]), 1)
+        #resid = numpy.real(phase_xy[mask_scaled]) - (intercept + slope*omegas)
+        #tau_estimate = -slope
+        #rmse = numpy.sqrt(((resid)**2).mean())
+        #print(rmse)
+
         cpsd_dict[otu_label_c]['avg_lag_scaled'] = avg_lag_scaled_coh_xy
         cpsd_dict[otu_label_c]['avg_lag_scaled_null'] = scaled_time_lags_null
         cpsd_dict[otu_label_c]['p_value_lag'] = p_value_lag
@@ -313,8 +363,8 @@ def plot_cpsd_lag_global():
     ax.set_xlim([-1*max_abs_width, max_abs_width])
     ax.set_ylim([0, max_height])
 
-    ax.text(0.76, 0.85, 'rRNA ' + r'$\rightarrow$' + ' rDNA', fontsize=13, ha='center', va='center', transform=ax.transAxes)
-    ax.text(0.25, 0.85, 'rDNA ' + r'$\rightarrow$' + ' rRNA', fontsize=13, ha='center', va='center', transform=ax.transAxes)
+    #ax.text(0.76, 0.85, 'rRNA ' + r'$\rightarrow$' + ' rDNA', fontsize=13, ha='center', va='center', transform=ax.transAxes)
+    #ax.text(0.25, 0.85, 'rDNA ' + r'$\rightarrow$' + ' rRNA', fontsize=13, ha='center', va='center', transform=ax.transAxes)
 
     ax.text(0.76, 0.75, r'$P_{\text{global}} < 10^{-4} $', fontsize=12, ha='center', va='center', transform=ax.transAxes)
 
@@ -425,6 +475,7 @@ def plot_phase_spectrum():
             if tau_dna is not None:
                 idx = numpy.argmin(numpy.abs(freqs - 1/tau_dna))
                 ax.axvline(1/tau_dna, color='b', lw=0.8, label=f'1/τ_dna  φ={phase_masked[idx]:.1f}°')
+            
 
             ax.set_xlabel('frequency')
             ax.set_ylabel('phase (degrees)')
@@ -439,16 +490,21 @@ def plot_phase_spectrum():
 
 
 
+
 if __name__ == "__main__":
 
     print("Running...")
 
     #make_cpsd_dict()
-    #plot_cpsd_lag()
+    plot_cpsd_lag()
 
     #test_significance_cpsd_all_otus()
-    plot_cpsd_lag_global()
+    #plot_cpsd_lag_global()
 
     #test_cpsd_lag()
 
     #plot_phase_spectrum()
+
+    #plot_freq_vs_time_lag()
+    
+    #plot_freq_vs_coh()

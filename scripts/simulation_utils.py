@@ -355,34 +355,34 @@ def test_amp_effect_fix_mean_var(mu, s, S, N, dist, gm, n_sites, rhogamma=0):
     ax_focal.set_xlabel("Days", fontsize=10)
     ax_focal.set_ylabel("Rescaled relative abundance", fontsize=10)
     ax_focal.legend(loc='lower right', fontsize=8)
-    ax_focal.set_title('Oscillating OTU', fontsize=12)
+    ax_focal.set_title('Oscillating ASV', fontsize=12)
 
     ax_focal_reads.set_yscale('log', basey=10)
     ax_focal_reads.set_xlabel("Days", fontsize=10)
     ax_focal_reads.set_ylabel("Number of reads", fontsize=10)
-    ax_focal_reads.set_title('Oscillating OTU', fontsize=12)
+    ax_focal_reads.set_title('Oscillating ASV', fontsize=12)
 
     ax_rank_2.set_yscale('log', basey=10)
     ax_rank_2.set_xlabel("Days", fontsize=10)
     ax_rank_2.set_ylabel("Rescaled relative abundance", fontsize=10)
-    ax_rank_2.set_title('Non-oscillating OTU, rank 2 abundance', fontsize=12)
+    ax_rank_2.set_title('Non-oscillating ASV, rank 2 abundance', fontsize=12)
 
     ax_rank_2_reads.set_yscale('log', basey=10)
     ax_rank_2_reads.set_xlabel("Days", fontsize=10)
     ax_rank_2_reads.set_ylabel("Number of reads", fontsize=10)
-    ax_rank_2_reads.set_title('Non-oscillating OTU, rank 2 abundance', fontsize=12)
+    ax_rank_2_reads.set_title('Non-oscillating ASV, rank 2 abundance', fontsize=12)
 
     #ax_rank_2_no_focal.set_ylim([0.5e-4, 7])
     ax_rank_2_no_focal.set_yscale('log', basey=10)
     ax_rank_2_no_focal.set_xlabel("Days", fontsize=10)
     ax_rank_2_no_focal.set_ylabel("Rescaled relative abundance", fontsize=10)
-    ax_rank_2_no_focal.set_title('Non-oscillating OTU, rank 2 abundance\nOscillating OTU removed from reads', fontsize=12)
+    ax_rank_2_no_focal.set_title('Non-oscillating ASV, rank 2 abundance\nOscillating ASV removed from reads', fontsize=12)
 
     # total number reads
     ax_rank_2_no_focal_reads.set_yscale('log', basey=10)
     ax_rank_2_no_focal_reads.set_xlabel("Days", fontsize=10)
     ax_rank_2_no_focal_reads.set_ylabel("Total number of reads", fontsize=10)
-    ax_rank_2_no_focal_reads.set_title('Oscillating OTU removed from reads', fontsize=12)
+    ax_rank_2_no_focal_reads.set_title('Oscillating ASV removed from reads', fontsize=12)
 
     fig.subplots_adjust(hspace=0.35,wspace=0.4)
     fig_name = "%stest_amp_effect_fix_mean_var.png" % config.analysis_directory
@@ -492,19 +492,19 @@ def test_amp_effect_fix_mean_var_clr(mu, s, S, N, dist, gm, n_sites, rhogamma=0)
     ax_focal.set_xlabel("Days", fontsize=10)
     ax_focal.set_ylabel("Rescaled relative abundance", fontsize=10)
     ax_focal.legend(loc='lower right', fontsize=8)
-    ax_focal.set_title('Oscillating OTU', fontsize=12)
+    ax_focal.set_title('Oscillating ASV', fontsize=12)
 
 
     ax_rank_2.set_xlabel("Days", fontsize=10)
     ax_rank_2.set_ylabel("Rescaled relative abundance", fontsize=10)
-    ax_rank_2.set_title('Non-oscillating OTU, rank 2 abundance', fontsize=12)
+    ax_rank_2.set_title('Non-oscillating ASV, rank 2 abundance', fontsize=12)
 
 
     #ax_rank_2_no_focal.set_ylim([0.5e-4, 7])
     ax_rank_2_no_focal.set_yscale('log', basey=10)
     ax_rank_2_no_focal.set_xlabel("Days", fontsize=10)
     ax_rank_2_no_focal.set_ylabel("Rescaled relative abundance", fontsize=10)
-    ax_rank_2_no_focal.set_title('Non-oscillating OTU, rank 2 abundance\nOscillating OTU removed from reads', fontsize=12)
+    ax_rank_2_no_focal.set_title('Non-oscillating ASV, rank 2 abundance\nOscillating ASV removed from reads', fontsize=12)
 
 
     fig.subplots_adjust(hspace=0.35,wspace=0.4)
@@ -810,15 +810,17 @@ def plot_oscillation_artifact_simulation():
     fig = plt.figure(figsize = (8, 8))
 
     param_dict = pickle.load(open(param_oscillation_artifact_simulation_path, "rb"))
-
+    
+    count_ax = 0
     for method_idx, method in enumerate(['log_rel', 'clr']):
 
         for rank_idx, rank in enumerate(['focal', 'nonfocal']):
 
             ax = plt.subplot2grid((2, 2), (method_idx, rank_idx))
 
-            ax.text(-0.1, 1.07, utils.sub_plot_labels[method_idx+rank_idx], fontsize=10, fontweight='bold', ha='center', va='center', transform=ax.transAxes)
+            ax.text(-0.1, 1.07, utils.sub_plot_labels[count_ax], fontsize=10, fontweight='bold', ha='center', va='center', transform=ax.transAxes)
 
+            count_ax+=1
 
             for gm_idx, gm in enumerate(list(param_dict[method][rank].keys())):
 
@@ -834,10 +836,10 @@ def plot_oscillation_artifact_simulation():
 
                     if rank == 'focal':
                         ax.plot([min(amp_first_rank), max(amp_first_rank)], [min(amp_first_rank), max(amp_first_rank)], ls=':', lw=2, c='k', label='1:1')
-                        ax.set_ylabel('Inferred amplitude of focal OTU', fontsize=11)
+                        ax.set_ylabel('Inferred amplitude of focal ASV', fontsize=11)
                     else:
-                        ax.axhline(y=0, ls=':', lw=2, c='k', label='True amplitude of non-focal OTU')
-                        ax.set_ylabel('Inferred amplitude of non-focal OTU', fontsize=11)
+                        ax.axhline(y=0, ls=':', lw=2, c='k', label='True amplitude of non-focal ASV')
+                        ax.set_ylabel('Inferred amplitude of non-focal ASV', fontsize=11)
 
 
                     if method == 'log_rel':
@@ -847,7 +849,7 @@ def plot_oscillation_artifact_simulation():
 
                     
                 ax.plot(amp_first_rank, amp_inferred, lw=2, ls='-', c=gm_color[gm], label='Mean ' + r'$\sigma$' ' = ' + str(round(gm, 3)))
-                ax.set_xlabel('True amplitude of oscillating focal OTU', fontsize=11)
+                ax.set_xlabel('True amplitude of oscillating focal ASV', fontsize=11)
 
                 if method_idx == 0:
                     ax.legend(loc='upper left', fontsize=8)
@@ -1510,13 +1512,17 @@ def plot_oscillation_artifact_phase_simulation():
 
     param_dict = pickle.load(open(param_oscillation_artifact_simulation_path, "rb"))
 
+    ax_count = 0
+
     for method_idx, method in enumerate(['log_rel', 'clr']):
 
         for rank_idx, rank in enumerate(['focal', 'nonfocal']):
 
             ax = plt.subplot2grid((2, 2), (method_idx, rank_idx))
 
-            ax.text(-0.1, 1.07, utils.sub_plot_labels[method_idx+rank_idx], fontsize=10, fontweight='bold', ha='center', va='center', transform=ax.transAxes)
+            ax.text(-0.1, 1.07, utils.sub_plot_labels[ax_count], fontsize=10, fontweight='bold', ha='center', va='center', transform=ax.transAxes)
+
+            ax_count += 1
 
             phase_ticks = [0, 0.5*numpy.pi, numpy.pi, 1.5*numpy.pi, 2*numpy.pi]
             phase_tick_labels = [r'0', r'$\frac{\pi}{2}$', r'$\pi$', r'$\frac{3\pi}{2}$',  r'$2\pi$']
@@ -1526,8 +1532,8 @@ def plot_oscillation_artifact_phase_simulation():
             ax.yaxis.set_tick_params(labelsize=9)
             ax.set_ylim([0, 2*numpy.pi])
 
-            ax.axhline(y=1.8, ls=':', lw=2, c='k', label='True phase of oscillating OTU')
-            ax.axhline(y=1.8 + numpy.pi, ls='--', lw=2, c='k', label='True phase of oscillating OTU + ' + r'$\pi$' )
+            ax.axhline(y=1.8, ls=':', lw=2, c='k', label='True phase of oscillating ASV')
+            ax.axhline(y=1.8 + numpy.pi, ls='--', lw=2, c='k', label='True phase of oscillating ASV + ' + r'$\pi$' )
 
 
             for gm_idx, gm in enumerate(list(param_dict[method][rank].keys())):
@@ -1545,10 +1551,10 @@ def plot_oscillation_artifact_phase_simulation():
 
                     if rank == 'focal':
                         #ax.plot([min(amp_first_rank), max(amp_first_rank)], [min(amp_first_rank), max(amp_first_rank)], ls=':', lw=2, c='k', label='1:1')
-                        ax.set_ylabel('Inferred phase of oscillating OTU', fontsize=11)
+                        ax.set_ylabel('Inferred phase of oscillating ASV', fontsize=11)
                     else:
                         #ax.axhline(y=0, ls=':', lw=2, c='k', label='True amplitude of non-focal OTU')
-                        ax.set_ylabel('Inferred phase of non-oscillating OTU', fontsize=11)
+                        ax.set_ylabel('Inferred phase of non-oscillating ASV', fontsize=11)
 
 
                     if method == 'log_rel':
@@ -1558,7 +1564,7 @@ def plot_oscillation_artifact_phase_simulation():
 
                     
                 ax.plot(amp_first_rank, amp_inferred, lw=2, ls='-', c=gm_color[gm], label='Mean ' + r'$\sigma$' ' = ' + str(round(gm, 3)))
-                ax.set_xlabel('True amplitude of oscillating focal OTU', fontsize=11)
+                ax.set_xlabel('True amplitude of oscillating focal ASV', fontsize=11)
 
                 if (method_idx == 0) and (rank_idx==0):
                     ax.legend(loc='upper left', fontsize=8)
@@ -1606,16 +1612,16 @@ if __name__ == "__main__":
     #make_compare_clr_to_true_abundance_dict()
 
     # Fig. S4
-    plot_compare_clr_to_true_abundance()
+    #plot_compare_clr_to_true_abundance()
 
     # Fig. S6
-    #oscillation_sim_results()
+    plot_oscillation_artifact_simulation()
 
     # Fig. S7
-    plot_oscillation_artifact_phase_simulation()
+    #plot_oscillation_artifact_phase_simulation()
 
     
-
+    #plot_oscillation_artifact_simulation()
     
     
 

@@ -12,7 +12,8 @@ import matplotlib.gridspec as gridspec
 from matplotlib.lines import Line2D
 from mpl_toolkits.axes_grid1.inset_locator import inset_axes
 from matplotlib.patches import Rectangle
-
+from scipy.stats import circmean, circstd
+#import pingouin as pg
 
 import sine_parameter_utils
 
@@ -33,6 +34,8 @@ metadata_dict = utils.build_metadata_dict()
 minor_days, major_days, major_labels = utils.get_seasonal_tick_labels()
 
 param_dict = pickle.load(open(sine_parameter_utils.param_otu_mle_dict_path, "rb"))
+
+
 
 
 
@@ -82,6 +85,10 @@ delta_phase = phase_rna - phase_dna
 
 delta_phase_new = (delta_phase + numpy.pi) % (2*numpy.pi) - numpy.pi
 #delta_phase_wrapped = numpy.asarray(delta_phase_new)
+
+
+
+
 
 
 ###
@@ -229,3 +236,50 @@ plt.close()
 
 
 
+
+cv = numpy.std(delta_phase_new) / numpy.abs(numpy.mean(delta_phase_new))
+#print(cv)
+# 
+R, p = utils.rayleigh_test(delta_phase_new)
+ 
+
+fig, ax = plt.subplots(figsize=(4.5, 4), subplot_kw=dict(projection='polar'))
+
+# one dot per ASV on the unit circle
+ax.scatter(delta_phase_new, numpy.ones(len(delta_phase_new)),  s=60, color='k', alpha=0.5, zorder=5)
+
+# mean resultant vector
+C = numpy.mean(numpy.cos(delta_phase_new))
+S = numpy.mean(numpy.sin(delta_phase_new))
+mean_angle = numpy.arctan2(S, C)
+R = numpy.sqrt(C**2 + S**2)
+
+ax.annotate('', xy=(mean_angle, R), xytext=(0, 0), arrowprops=dict(arrowstyle='->', color='black', lw=2))
+
+# reference circle
+theta = numpy.linspace(0, 2*numpy.pi, 200)
+ax.plot(theta, numpy.ones(200), color='gray', lw=0.5, alpha=0.4)
+
+ax.set_ylim(0, 1.3)
+ax.set_yticks([])
+
+# full circle — this is the key part
+# show full circle
+ax.set_thetalim(-numpy.pi, numpy.pi)
+# 0 at right
+ax.set_theta_zero_location('E')
+# counterclockwise
+ax.set_theta_direction(1)
+
+#ax.set_xticks([-numpy.pi, -numpy.pi/2, 0, numpy.pi/2, numpy.pi])
+#ax.set_xticklabels(['-π', '-π/2', '0', 'π/2', 'π'])
+
+ax.set_xticks([-numpy.pi, -numpy.pi/2, 0, numpy.pi/2])
+ax.set_xticklabels(['-π', '-π/2', '0', 'π/2'])
+
+ax.set_title(f'Per-ASV phase difference\nRayleigh test for circular uniformity\n' + r'$R$=' + str(round(R, 3)) +  ', ' + r'$P=$' + str(round(p, 4)), pad=40, fontsize=12)
+
+
+fig_name = "%sunit_circle.png" % config.analysis_directory
+fig.savefig(fig_name, format='png', bbox_inches = "tight", pad_inches = 0.4, dpi = 600)
+plt.close()
