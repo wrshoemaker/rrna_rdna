@@ -263,19 +263,23 @@ ax.plot(theta, numpy.ones(200), color='gray', lw=0.5, alpha=0.4)
 ax.set_ylim(0, 1.3)
 ax.set_yticks([])
 
-# full circle — this is the key part
 # show full circle
 ax.set_thetalim(-numpy.pi, numpy.pi)
 # 0 at right
-ax.set_theta_zero_location('E')
+#ax.set_theta_zero_location('E')
+ax.set_theta_zero_location('N')  
+ax.set_theta_direction(-1) 
 # counterclockwise
 ax.set_theta_direction(1)
 
 #ax.set_xticks([-numpy.pi, -numpy.pi/2, 0, numpy.pi/2, numpy.pi])
 #ax.set_xticklabels(['-π', '-π/2', '0', 'π/2', 'π'])
 
+#ax.set_xticks([-numpy.pi, -numpy.pi/2, 0, numpy.pi/2])
+#ax.set_xticklabels(['±π', '-π/2', '0', 'π/2'])
+
 ax.set_xticks([-numpy.pi, -numpy.pi/2, 0, numpy.pi/2])
-ax.set_xticklabels(['-π', '-π/2', '0', 'π/2'])
+ax.set_xticklabels(['±π', '-π/2', '0', 'π/2'])
 
 ax.set_title(f'Per-ASV phase difference\nRayleigh test for circular uniformity\n' + r'$R$=' + str(round(R, 3)) +  ', ' + r'$P=$' + str(round(p, 4)), pad=40, fontsize=12)
 

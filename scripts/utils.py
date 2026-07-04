@@ -94,6 +94,13 @@ family_trophic_status = {
 
 
 
+def empirical_survival(sample):
+    x = numpy.sort(numpy.asarray(sample))
+    n = len(x)
+    S = 1 - numpy.arange(1, n + 1) / n
+    return x, S
+
+
 def get_p_value_latex_label_dict(p_value):
 
     if p_value <= 0.05:
