@@ -56,8 +56,7 @@ get_base  <- function(x) {
   x
 }
 get_dtype <- function(x) {
-  ifelse(grepl("_rna_dna$", x), "rna_dna",
-         ifelse(grepl("_rna$", x), "rna", "dna"))
+  ifelse(grepl("_rna_dna$", x), "rna_dna", ifelse(grepl("_rna$", x), "rna", "dna"))
 }
 
 asv_df <- data.frame(
@@ -318,9 +317,7 @@ summarise_diff_smooth <- function(curve_data) {
 }
 
 
-# =============================================================================
 # Diagnostics
-# =============================================================================
 
 extract_diagnostics <- function(m_joint, asv_id) {
   tryCatch({
